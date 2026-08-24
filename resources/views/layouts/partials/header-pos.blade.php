@@ -23,17 +23,13 @@
 @endif
 <input type="hidden" name="transaction_sub_type" id="transaction_sub_type" value="{{ $transaction_sub_type }}">
 @inject('request', 'Illuminate\Http\Request')
-<div class="col-md-12 no-print pos-header premium-pos-header">
+<div class="col-md-12 no-print pos-header">
     <input type="hidden" id="pos_redirect_url" value="{{ $pos_redirect_url }}">
 
     <div
         class="tw-flex tw-flex-col md:tw-flex-row tw-items-center tw-justify-between tw-shadow-[rgba(17,_17,_26,_0.1)_0px_0px_16px] tw-bg-white tw-rounded-xl tw-mx-0 tw-mt-1 tw-mb-0 md:tw-mb-0 tw-p-3">
         <div class="tw-w-full md:tw-w-1/3">
             <div class="tw-flex tw-items-center tw-gap-2">
-                <span class="pos-header-brand" title="{{ Session::get('business.name') }}">
-                    <span class="pos-logo-mark">{{ strtoupper(substr(Session::get('business.name', 'P'), 0, 1)) }}</span>
-                    <span class="tw-hidden md:tw-inline">{{ Session::get('business.name') }}</span>
-                </span>
                 <p><strong>@lang('sale.location'): &nbsp;</strong></p>
                 <div style="width: 28%">
                     @if (empty($transaction->location_id))
@@ -55,26 +51,11 @@
                 <div
                     class="tw-hidden md:tw-block tw-bg-[#2563EB] hover:tw-bg-[#1D4ED8] tw-py-1.5 tw-px-2 tw-rounded-md">
                      &nbsp; <span
-                        class="curr_datetime text-white tw-font-semibold" id="pos_live_clock">{{ @format_datetime('now') }}</span>
+                        class="curr_datetime text-white tw-font-semibold">{{ @format_datetime('now') }}</span>
                     <i class="fa fa-keyboard hover-q text-white" aria-hidden="true" data-container="body"
                         data-toggle="popover" data-placement="bottom" data-content="@include('sale_pos.partials.keyboard_shortcuts_details')"
                         data-html="true" data-trigger="hover" data-original-title="" title=""></i>
                 </div>
-
-                <button type="button" id="pos_dark_mode_toggle" class="pos-dark-toggle" title="Dark Mode" aria-label="Toggle dark mode">
-                    <i class="fas fa-moon"></i>
-                </button>
-
-                <span class="pos-status-pills tw-hidden md:tw-inline-flex">
-                    <span class="pos-status-pill" title="Network">
-                        <span class="dot" id="pos_network_dot"></span>
-                        <span id="pos_network_status">Online</span>
-                    </span>
-                    <span class="pos-user-chip" title="Logged in user">
-                        <i class="fas fa-user"></i>
-                        {{ auth()->user()->first_name ?? '' }} {{ auth()->user()->last_name ?? '' }}
-                    </span>
-                </span>
 
                 @if (empty($pos_settings['hide_product_suggestion']))
                     <button type="button" title="{{ __('lang_v1.view_products') }}" data-placement="bottom"

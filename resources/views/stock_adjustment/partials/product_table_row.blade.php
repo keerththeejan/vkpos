@@ -64,13 +64,38 @@
             @endphp
         @endif
 
-        <input type="text" class="form-control product_quantity input_number input_quantity" value="{{@format_quantity($product->quantity_ordered)}}" name="products[{{$row_index}}][quantity]" 
-        @if($product->unit_allow_decimal == 1) data-decimal=1 @else data-rule-abs_digit="true" data-msg-abs_digit="@lang('lang_v1.decimal_value_not_allowed')" data-decimal=0 @endif
+        @php
+            $allow_decimal = true;
+            $multiplier = 1;
+            if($product->unit_allow_decimal != 1) {
+                $allow_decimal = false;
+            }
+            $qty_min = $allow_decimal ? '0.001' : '1';
+            $qty_step = $allow_decimal ? '0.001' : '1';
+        @endphp
+
+        <input type="text" class="form-control product_quantity input_number input_quantity" value="{{@format_quantity($product->quantity_ordered)}}" name="products[{{$row_index}}][quantity]"
+        data-min="{{$qty_min}}" data-step="{{$qty_step}}"
+        @if($allow_decimal) data-decimal=1 @else data-rule-abs_digit="true" data-msg-abs_digit="@lang('lang_v1.decimal_value_not_allowed')" data-decimal=0 @endif
         data-rule-required="true" data-msg-required="@lang('validation.custom-messages.this_field_is_required')" @if($product->enable_stock) data-rule-max-value="{{$product->qty_available}}" data-msg-max-value="@lang('validation.custom-messages.quantity_not_available', ['qty'=> $product->formatted_qty_available, 'unit' => $product->unit  ])"
-        data-qty_available="{{$product->qty_available}}" 
+        data-qty_available="{{$product->qty_available}}"
         data-msg_max_default="@lang('validation.custom-messages.quantity_not_available', ['qty'=> $product->formatted_qty_available, 'unit' => $product->unit  ])"
          @endif >
-        {{$product->unit}}
+        <input type="hidden" class="base_unit_multiplier" name="products[{{$row_index}}][base_unit_multiplier]" value="{{$multiplier}}">
+        <input type="hidden" class="hidden_base_unit_price" value="{{$product->last_purchased_price}}">
+        <input type="hidden" name="products[{{$row_index}}][product_unit_id]" value="{{$product->unit_id}}">
+        @if(!empty($sub_units))
+            <br>
+            <select name="products[{{$row_index}}][sub_unit_id]" class="form-control input-sm sub_unit">
+                @foreach($sub_units as $key => $value)
+                    <option value="{{$key}}" data-multiplier="{{$value['multiplier']}}" data-unit_name="{{$value['name']}}" data-allow_decimal="{{$value['allow_decimal']}}" @if(!empty($product->sub_unit_id) && $product->sub_unit_id == $key) selected @endif>
+                        {{$value['name']}}
+                    </option>
+                @endforeach
+            </select>
+        @else
+            {{$product->unit}}
+        @endif
     </td>
     <td class="show_price_with_permission">
         <input type="text" name="products[{{$row_index}}][unit_price]" class="form-control product_unit_price input_number" value="{{@num_format($product->last_purchased_price)}}">

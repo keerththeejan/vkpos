@@ -127,6 +127,8 @@
                         $check_decimal = 'true';
                     }
                     $max_quantity = 0;
+                    $qty_min = $purchase_line->product->unit->allow_decimal == 1 ? '0.001' : '1';
+                    $qty_step = $purchase_line->product->unit->allow_decimal == 1 ? '0.001' : '1';
 
                     if(!empty($purchase_line->purchase_order_line_id) && !empty($common_settings['enable_purchase_order'])){
                         $max_quantity = $purchase_line->purchase_order_line->quantity - $purchase_line->purchase_order_line->po_quantity_purchased + $purchase_line->quantity;
@@ -136,8 +138,10 @@
                 <input type="text" 
                 name="purchases[{{$loop->index}}][quantity]" 
                 value="{{@format_quantity($purchase_line->quantity)}}"
-                class="form-control input-sm purchase_quantity input_number mousetrap"
+                class="form-control input-sm purchase_quantity input_number mousetrap input_quantity"
                 required
+                data-min="{{$qty_min}}"
+                data-step="{{$qty_step}}"
                 data-rule-abs_digit={{$check_decimal}}
                 data-msg-abs_digit="{{__('lang_v1.decimal_value_not_allowed')}}"
                 @if(!empty($max_quantity))
@@ -153,6 +157,8 @@
                         @foreach($purchase_line->sub_units_options as $sub_units_key => $sub_units_value)
                             <option value="{{$sub_units_key}}" 
                                 data-multiplier="{{$sub_units_value['multiplier']}}"
+                                data-allow_decimal="{{$sub_units_value['allow_decimal'] ?? 1}}"
+                                data-unit_name="{{$sub_units_value['name']}}"
                                 @if($sub_units_key == $purchase_line->sub_unit_id) selected @endif>
                                 {{$sub_units_value['name']}}
                             </option>
@@ -223,8 +229,8 @@
                 @php
                     $pp = $purchase_line->purchase_price_inc_tax;
                     $sp = $purchase_line->variations->sell_price_inc_tax;
-                    if(!empty($purchase_line->sub_unit->base_unit_multiplier)) {
-                        $sp = $sp * $purchase_line->sub_unit->base_unit_multiplier;
+                    if(!empty($purchase_line->sub_unit_id) && !empty($purchase_line->sub_units_options[$purchase_line->sub_unit_id]['multiplier'])) {
+                        $sp = $sp * $purchase_line->sub_units_options[$purchase_line->sub_unit_id]['multiplier'];
                     }
                     if($pp == 0){
                         $profit_percent = 100;

@@ -12,6 +12,11 @@
 <link rel="stylesheet" href="{{ asset('css/app.css?v='.$asset_v) }}">
 
 @if(isset($pos_layout) && $pos_layout)
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Noto+Sans:wght@500;600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&family=Roboto:wght@500;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="{{ asset('css/pos-premium.css?v='.$asset_v) }}">
+	<link rel="stylesheet" href="{{ asset('css/pos-terminal.css?v='.$asset_v) }}">
 	<style type="text/css">
 		.content{
 			padding-bottom: 0px !important;

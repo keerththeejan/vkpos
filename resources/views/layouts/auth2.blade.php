@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="{{ app()->getLocale() }}">
-<html>
 
 <head>
     <meta charset="utf-8">
@@ -27,7 +26,7 @@
 
 <body class="pace-done" data-new-gr-c-s-check-loaded="14.1172.0" data-gr-ext-installed="" cz-shortcut-listen="true">
     @inject('request', 'Illuminate\Http\Request')
-    @if (session('status') && session('status.success'))
+    @if (session('status'))
         <input type="hidden" id="status_span" data-status="{{ session('status.success') }}"
             data-msg="{{ session('status.msg') }}">
     @endif
@@ -122,6 +121,14 @@
     <style>
         .wizard>.content {
             background-color: white !important;
+            overflow: visible !important;
+            min-height: auto;
+            height: auto;
+        }
+        .wizard>.content>.body {
+            position: relative !important;
+            height: auto !important;
+            width: 100%;
         }
     </style>
 </body>

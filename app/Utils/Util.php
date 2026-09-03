@@ -64,7 +64,7 @@ class Util
         $currency_precision = ! empty($business_details) ? $business_details->currency_precision : session('business.currency_precision', 2);
 
         if ($is_quantity) {
-            $currency_precision = ! empty($business_details) ? $business_details->quantity_precision : session('business.quantity_precision', 2);
+            $currency_precision = $this->getQuantityPrecision($business_details);
         }
 
         $formatted = number_format($input_number, $currency_precision, $decimal_separator, $thousand_separator);
@@ -558,7 +558,25 @@ class Util
     }
 
     /**
-     * Retrieves sub units of a base unit
+     * Quantity display/calculation precision.
+     * At least 4 decimal places so 1 G of a KG product (0.001) is not rounded away.
+     */
+    public function getQuantityPrecision($business_details = null)
+    {
+        $precision = ! empty($business_details) && isset($business_details->quantity_precision)
+            ? (int) $business_details->quantity_precision
+            : (int) session('business.quantity_precision', 4);
+
+        return max($precision, 4);
+    }
+
+    /**
+     * Retrieves related units of a product unit, including parent base units.
+     *
+     * Multipliers are relative to $unit_id (the product's stored unit):
+     * 1 selected-unit = multiplier product-units.
+     * Example: product unit KG, selected G => 0.001
+     *          product unit G,  selected KG => 1000
      *
      * @param  int  $business_id
      * @param  int  $unit_id
@@ -568,64 +586,135 @@ class Util
      */
     public function getSubUnits($business_id, $unit_id, $return_main_unit_if_empty = false, $product_id = null)
     {
-        $unit = Unit::where('business_id', $business_id)
-            ->with(['sub_units'])
-            ->findOrFail($unit_id);
+        $unit = Unit::where('business_id', $business_id)->findOrFail($unit_id);
 
-        //Find related subunits for the product.
         $related_sub_units = [];
         if (! empty($product_id)) {
             $product = Product::where('business_id', $business_id)->findOrFail($product_id);
             $related_sub_units = $product->sub_unit_ids;
         }
 
-        $sub_units = [];
+        $base_id = $unit->familyBaseUnitId();
+        $family_units = Unit::where('business_id', $business_id)
+            ->where(function ($q) use ($base_id) {
+                $q->where('id', $base_id)
+                    ->orWhere('base_unit_id', $base_id);
+            })
+            ->get();
 
-        //Add main unit as per given parameter or conditions.
-        if (($return_main_unit_if_empty && count($unit->sub_units) == 0)) {
-            $sub_units[$unit->id] = [
-                'name' => $unit->actual_name,
-                'multiplier' => 1,
-                'allow_decimal' => $unit->allow_decimal,
-            ];
-        } elseif (empty($related_sub_units) || in_array($unit->id, $related_sub_units)) {
-            $sub_units[$unit->id] = [
-                'name' => $unit->actual_name,
-                'multiplier' => 1,
-                'allow_decimal' => $unit->allow_decimal,
+        // Preserve previous behaviour for units with no family (no parent, no children)
+        // when return_main_unit_if_empty is used on the product form.
+        if ($return_main_unit_if_empty && $family_units->count() <= 1 && empty($unit->base_unit_id)) {
+            return [
+                $unit->id => [
+                    'name' => $unit->actual_name,
+                    'multiplier' => 1,
+                    'allow_decimal' => $unit->allow_decimal,
+                ],
             ];
         }
 
-        if (count($unit->sub_units) > 0) {
-            foreach ($unit->sub_units as $sub_unit) {
-                //Check if subunit is related to the product or not.
-                if (empty($related_sub_units) || in_array($sub_unit->id, $related_sub_units)) {
-                    $sub_units[$sub_unit->id] = [
-                        'name' => $sub_unit->actual_name,
-                        'multiplier' => $sub_unit->base_unit_multiplier,
-                        'allow_decimal' => $sub_unit->allow_decimal,
-                    ];
-                }
+        $sub_units = [];
+        $has_related = ! empty($related_sub_units);
+
+        foreach ($family_units as $family_unit) {
+            if ($has_related && ! in_array($family_unit->id, $related_sub_units) && $family_unit->id != $unit->id) {
+                continue;
             }
+
+            $sub_units[$family_unit->id] = [
+                'name' => $family_unit->actual_name,
+                'multiplier' => $this->getMultiplierOf2Units($unit->id, $family_unit->id),
+                'allow_decimal' => $family_unit->allow_decimal,
+            ];
+        }
+
+        if (empty($sub_units)) {
+            $sub_units[$unit->id] = [
+                'name' => $unit->actual_name,
+                'multiplier' => 1,
+                'allow_decimal' => $unit->allow_decimal,
+            ];
+        } elseif (isset($sub_units[$unit->id])) {
+            $own = [$unit->id => $sub_units[$unit->id]];
+            unset($sub_units[$unit->id]);
+            $sub_units = $own + $sub_units;
         }
 
         return $sub_units;
     }
 
+    /**
+     * How many of $base_unit_id (product unit) equal 1 of $unit_id (selected unit).
+     * Uses unit family (base_unit_id + base_unit_multiplier), not unit names.
+     */
     public function getMultiplierOf2Units($base_unit_id, $unit_id)
     {
         if ($base_unit_id == $unit_id || is_null($base_unit_id) || is_null($unit_id)) {
             return 1;
         }
 
-        $unit = Unit::where('base_unit_id', $base_unit_id)
-            ->where('id', $unit_id)
-            ->first();
-        if (empty($unit)) {
+        $units = Unit::whereIn('id', [$base_unit_id, $unit_id])->get()->keyBy('id');
+        $product_unit = $units->get($base_unit_id);
+        $selected_unit = $units->get($unit_id);
+
+        if (empty($product_unit) || empty($selected_unit)) {
             return 1;
-        } else {
-            return $unit->base_unit_multiplier;
         }
+
+        if ($product_unit->familyBaseUnitId() != $selected_unit->familyBaseUnitId()) {
+            // Unrelated units: keep legacy lookup (selected is a direct child of product unit)
+            $unit = Unit::where('base_unit_id', $base_unit_id)
+                ->where('id', $unit_id)
+                ->first();
+
+            return ! empty($unit) && ! empty($unit->base_unit_multiplier) ? $unit->base_unit_multiplier : 1;
+        }
+
+        $product_to_base = $product_unit->multiplierToBase();
+        $selected_to_base = $selected_unit->multiplierToBase();
+
+        if ($product_to_base == 0.0) {
+            return 1;
+        }
+
+        return $selected_to_base / $product_to_base;
+    }
+
+    /**
+     * Multiplier to convert a quantity in $selected_unit_id into the product's stored unit.
+     */
+    public function getQuantityMultiplier($product_unit_id, $selected_unit_id = null)
+    {
+        if (empty($product_unit_id) || empty($selected_unit_id) || $product_unit_id == $selected_unit_id) {
+            return 1;
+        }
+
+        $multiplier = (float) $this->getMultiplierOf2Units($product_unit_id, $selected_unit_id);
+
+        if ($multiplier == 0.0) {
+            return 1;
+        }
+
+        return $multiplier;
+    }
+
+    /**
+     * Convert a posted line quantity (in the selected unit) into the product's stored unit.
+     *
+     * @param  array  $product
+     * @param  bool  $uf_data
+     * @return float
+     */
+    public function quantityInProductUnit($product, $uf_data = true)
+    {
+        $qty = $uf_data ? $this->num_uf($product['quantity'] ?? 0) : ($product['quantity'] ?? 0);
+        $product_unit_id = $product['product_unit_id'] ?? null;
+        if (empty($product_unit_id) && ! empty($product['product_id'])) {
+            $product_unit_id = optional(Product::find($product['product_id']))->unit_id;
+        }
+
+        return $qty * $this->getQuantityMultiplier($product_unit_id, $product['sub_unit_id'] ?? null);
     }
 
     /**
@@ -1561,9 +1650,7 @@ class Util
 
     public function roundQuantity($quantity)
     {
-        $quantity_precision = session('business.quantity_precision', 2);
-
-        return round($quantity, $quantity_precision);
+        return round($quantity, $this->getQuantityPrecision());
     }
 
     public function getDropdownForRoles($business_id)

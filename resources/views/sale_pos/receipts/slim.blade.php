@@ -642,10 +642,10 @@
 				<!-- Total Paid-->
 				@if(!empty($receipt_details->total_paid))
 					<div class="flex-box">
-						<p class="width-50 text-right">
+						<p class="width-50 text-right sub-headings">
 							{!! $receipt_details->total_paid_label !!}
 						</p>
-						<p class="width-50 text-right">
+						<p class="width-50 text-right sub-headings">
 							{{$receipt_details->total_paid}}
 						</p>
 					</div>
@@ -654,10 +654,10 @@
 				<!-- Total Due-->
 				@if(!empty($receipt_details->total_due) && !empty($receipt_details->total_due_label))
 					<div class="flex-box">
-						<p class="width-50 text-right">
+						<p class="width-50 text-right sub-headings">
 							{!! $receipt_details->total_due_label !!}
 						</p>
-						<p class="width-50 text-right">
+						<p class="width-50 text-right sub-headings">
 							{{$receipt_details->total_due}}
 						</p>
 					</div>
@@ -726,12 +726,17 @@
 }
 body {
 	color: #000000;
+	font-family: Arial, Helvetica, Inter, Roboto, "Noto Sans Tamil", "Noto Sans", sans-serif;
+	font-weight: 600;
 }
 @media print {
 	* {
-    	font-size: 12px;
-    	font-family: 'Times New Roman';
-    	word-break: break-all;
+    	font-size: 13px;
+    	font-family: Arial, Helvetica, Inter, Roboto, "Noto Sans Tamil", "Noto Sans", sans-serif;
+    	color: #000000;
+    	font-weight: 600;
+    	word-break: normal;
+    	overflow-wrap: break-word;
 	}
 	.f-8 {
 		font-size: 8px !important;
@@ -739,14 +744,16 @@ body {
 	
 .headings{
 	font-size: 16px;
-	font-weight: 700;
+	font-weight: 800;
 	text-transform: uppercase;
 	white-space: nowrap;
+	color: #000000;
 }
 
 .sub-headings{
 	font-size: 15px !important;
-	font-weight: 700 !important;
+	font-weight: 800 !important;
+	color: #000000;
 }
 
 .border-top{
@@ -841,7 +848,14 @@ img {
 	clear: both;
 }
 .textbox-info p {
-	margin-bottom: 0px
+	margin-bottom: 0px;
+	font-weight: 600;
+	color: #000;
+}
+.textbox-info p strong,
+.textbox-info p.f-left {
+	font-weight: 700;
+	color: #000;
 }
 .flex-box {
 	display: flex;

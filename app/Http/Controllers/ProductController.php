@@ -317,7 +317,7 @@ class ProductController extends Controller
 
         $brands = Brands::forDropdown($business_id);
 
-        $units = Unit::forDropdown($business_id);
+        $units = Unit::forDropdown($business_id, false, false);
 
         $tax_dropdown = TaxRate::forBusinessDropdown($business_id, false);
         $taxes = $tax_dropdown['tax_rates'];
@@ -374,7 +374,7 @@ class ProductController extends Controller
         $categories = Category::forDropdown($business_id, 'product');
 
         $brands = Brands::forDropdown($business_id);
-        $units = Unit::forDropdown($business_id, true);
+        $units = Unit::forDropdown($business_id, true, false);
 
         $tax_dropdown = TaxRate::forBusinessDropdown($business_id, true, true);
         $taxes = $tax_dropdown['tax_rates'];
@@ -408,6 +408,8 @@ class ProductController extends Controller
             if (! empty($duplicate_product->id)) {
                 $rack_details = $this->productUtil->getRackDetails($business_id, $duplicate_product->id);
             }
+
+            $units = Unit::forDropdown($business_id, true, false, $duplicate_product->unit_id);
         }
 
         $selling_price_group_count = SellingPriceGroup::countSellingPriceGroups($business_id);
@@ -650,7 +652,7 @@ class ProductController extends Controller
         $default_profit_percent = request()->session()->get('business.default_profit_percent');
 
         //Get units.
-        $units = Unit::forDropdown($business_id, true);
+        $units = Unit::forDropdown($business_id, true, false, $product->unit_id);
         $sub_units = $this->productUtil->getSubUnits($business_id, $product->unit_id, true);
 
         //Get all business locations
@@ -697,6 +699,26 @@ class ProductController extends Controller
                                 ->where('id', $id)
                                 ->with(['product_variations'])
                                 ->first();
+
+            $old_unit_id = $product->unit_id;
+            $new_unit_id = $product_details['unit_id'];
+            $unit_converted = false;
+            if (! empty($old_unit_id) && ! empty($new_unit_id) && $old_unit_id != $new_unit_id) {
+                $unit_converted = $this->productUtil->convertProductBetweenRelatedUnits($product, $old_unit_id, $new_unit_id);
+                if ($unit_converted) {
+                    $qty_factor = $this->productUtil->getMultiplierOf2Units($new_unit_id, $old_unit_id);
+                    if (! empty($product_details['alert_quantity'])) {
+                        $product_details['alert_quantity'] = $this->productUtil->num_uf($product_details['alert_quantity']) * $qty_factor;
+                    }
+                    foreach (['single_dpp', 'single_dpp_inc_tax', 'single_dsp', 'single_dsp_inc_tax'] as $price_field) {
+                        if ($request->filled($price_field)) {
+                            $request->merge([
+                                $price_field => $this->productUtil->num_uf($request->input($price_field)) / $qty_factor,
+                            ]);
+                        }
+                    }
+                }
+            }
 
             $module_form_fields = $this->moduleUtil->getModuleFormField('product_form_fields');
             if (! empty($module_form_fields)) {
@@ -864,6 +886,19 @@ class ProductController extends Controller
                 $variation->sell_price_inc_tax = $this->productUtil->num_uf($request->input('selling_price_inc_tax'));
                 $variation->combo_variations = $combo_variations;
                 $variation->save();
+            }
+
+            if (! empty($unit_converted) && $product->type != 'single') {
+                $qty_factor = $this->productUtil->getMultiplierOf2Units($new_unit_id, $old_unit_id);
+                if ($qty_factor != 0 && abs($qty_factor - 1) > 0.0000000001) {
+                    Variation::where('product_id', $product->id)
+                        ->update([
+                            'default_purchase_price' => DB::raw('default_purchase_price / '.$qty_factor),
+                            'dpp_inc_tax' => DB::raw('dpp_inc_tax / '.$qty_factor),
+                            'default_sell_price' => DB::raw('default_sell_price / '.$qty_factor),
+                            'sell_price_inc_tax' => DB::raw('sell_price_inc_tax / '.$qty_factor),
+                        ]);
+                }
             }
 
             //Add product racks details.
@@ -1440,7 +1475,7 @@ class ProductController extends Controller
         $business_id = request()->session()->get('user.business_id');
         $categories = Category::forDropdown($business_id, 'product');
         $brands = Brands::forDropdown($business_id);
-        $units = Unit::forDropdown($business_id, true);
+        $units = Unit::forDropdown($business_id, true, false);
 
         $tax_dropdown = TaxRate::forBusinessDropdown($business_id, true, true);
         $taxes = $tax_dropdown['tax_rates'];

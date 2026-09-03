@@ -71,7 +71,7 @@
 	</td>
 	<td>
 		<div class="input-group">
-		  {!! Form::text('stocks[' . $key . '][' . $variation->id . '][' . $sub_key . '][quantity]', @format_quantity($qty) , ['class' => 'form-control input-sm input_number purchase_quantity input_quantity', 'required']); !!}
+		  {!! Form::text('stocks[' . $key . '][' . $variation->id . '][' . $sub_key . '][quantity]', @format_quantity($qty) , ['class' => 'form-control input-sm input_number purchase_quantity input_quantity', 'required', 'data-min' => ($product->unit->allow_decimal == 1 ? '0.001' : '1'), 'data-step' => ($product->unit->allow_decimal == 1 ? '0.001' : '1'), 'data-decimal' => ($product->unit->allow_decimal == 1 ? '1' : '0')]); !!}
 		  <span class="input-group-addon">
 		    {{ $product->unit->short_name }}
 		  </span>
@@ -118,7 +118,7 @@
 					</td>
 					<td>
 					<div class="input-group">
-	              		<input class="form-control input-sm input_number purchase_quantity" required="" name="stocks[{{$key}}][{{$variation->id}}][__subkey__][quantity]" type="text" value="0">
+	              		<input class="form-control input-sm input_number purchase_quantity" required="" name="stocks[{{$key}}][{{$variation->id}}][__subkey__][quantity]" type="text" value="0" data-min="{{ $product->unit->allow_decimal == 1 ? '0.001' : '1' }}" data-step="{{ $product->unit->allow_decimal == 1 ? '0.001' : '1' }}" data-decimal="{{ $product->unit->allow_decimal == 1 ? '1' : '0' }}">
 			              <span class="input-group-addon">
 			                {{ $product->unit->short_name }}
 			              </span>

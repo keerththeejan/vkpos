@@ -136,7 +136,7 @@
         <div class="col-sm-4">
             <div class="form-group">
                 {!! Form::label('quantity_precision', __('lang_v1.quantity_precision') . ':*') !!} @show_tooltip(__('lang_v1.quantity_precision_help'))
-                {!! Form::select('quantity_precision', [0 =>0, 1=>1, 2=>2, 3=>3,4=>4], $business->quantity_precision, ['class' => 'form-control select2', 'required']); !!}
+                {!! Form::select('quantity_precision', [0 =>0, 1=>1, 2=>2, 3=>3, 4=>4, 5=>5, 6=>6], $business->quantity_precision, ['class' => 'form-control select2', 'required']); !!}
             </div>
         </div>
     </div>

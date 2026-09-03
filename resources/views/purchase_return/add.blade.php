@@ -59,7 +59,7 @@
 			                    $check_decimal = 'true';
 			                }
 
-			          		if(!empty($purchase_line->sub_unit->base_unit_multiplier)) {
+			          		if(!empty($purchase_line->sub_unit)) {
 			          			$unit_name = $purchase_line->sub_unit->short_name;
 
 			          			if($purchase_line->sub_unit->allow_decimal == 0){
@@ -83,15 +83,15 @@
 			              	<td><span class="display_currency" data-currency_symbol="true">{{ $purchase_line->purchase_price_inc_tax }}</span></td>
 			              	<td><span class="display_currency" data-is_quantity="true" data-currency_symbol="false">{{ $purchase_line->quantity }}</span> {{$unit_name}}</td>
 			              	<td><span class="display_currency" data-currency_symbol="false" data-is_quantity="true">{{ $qty_available }}</span> {{$unit_name}}</td>
-			              	<td>
+			              		<td>
 			              		@php
-					                $check_decimal = 'false';
-					                if($purchase_line->product->unit->allow_decimal == 0){
-					                    $check_decimal = 'true';
-					                }
+					                $qty_min = $check_decimal === 'true' ? '1' : '0.001';
+					                $qty_step = $check_decimal === 'true' ? '1' : '0.001';
 					            @endphp
 					            <input type="text" name="returns[{{$purchase_line->id}}]" value="{{@format_quantity($purchase_line->quantity_returned)}}"
 					            class="form-control input-sm input_number return_qty input_quantity"
+					            data-min="{{$qty_min}}"
+					            data-step="{{$qty_step}}"
 					            data-rule-abs_digit="{{$check_decimal}}" 
 					            data-msg-abs_digit="@lang('lang_v1.decimal_value_not_allowed')"
 					            @if($purchase_line->product->enable_stock) 

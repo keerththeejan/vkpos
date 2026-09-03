@@ -26,7 +26,8 @@
                             <button type="button" class="is-exact" data-cash-quick="exact">Exact Amount</button>
                         </div>
                     </div>
-                    <div class="col-md-9">
+                    <div class="col-md-7">
+                        <div class="pos-paid-amount-heading">Paid Amount</div>
                         <div class="row">
                             <div id="payment_rows_div">
                                 @php
@@ -144,67 +145,60 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="box box-solid bg-orange premium-payment-summary">
+                    <div class="col-md-5">
+                        <div class="box box-solid premium-payment-summary pos-pay-summary-card">
                             <div class="box-body">
-                                <div class="col-md-12">
-                                    <strong>
-                                        @lang('lang_v1.total_items'):
-                                    </strong>
-                                    <br />
-                                    <span class="lead text-bold total_quantity">0</span>
+                                <div class="pos-pay-summary-title">Payment Summary</div>
+
+                                <div class="pos-pay-row pos-pay-row-items">
+                                    <span class="pos-pay-label">@lang('lang_v1.total_items')</span>
+                                    <span class="pos-pay-value lead text-bold total_quantity">0</span>
                                 </div>
 
-                                <div class="col-md-12">
-                                    <hr>
-                                    <strong>
-                                        @lang('sale.total_payable'):
-                                    </strong>
-                                    <br />
-                                    <span class="lead text-bold total_payable_span">0</span>
+                                <div class="pos-pay-row pos-pay-row-sub">
+                                    <span class="pos-pay-label">@lang('sale.subtotal')</span>
+                                    <span class="pos-pay-value pos-pay-subtotal-display">0</span>
                                 </div>
 
-                                <div class="col-md-12">
-                                    <hr>
-                                    <strong>
-                                        @lang('lang_v1.total_paying'):
-                                    </strong>
-                                    <br />
-                                    <span class="lead text-bold total_paying">0</span>
-                                    <input type="hidden" id="total_paying_input">
+                                <div class="pos-pay-row pos-pay-row-disc">
+                                    <span class="pos-pay-label">@lang('sale.discount')</span>
+                                    <span class="pos-pay-value pos-pay-discount-display">0</span>
                                 </div>
 
-                                <div class="col-md-12">
-                                    <hr>
-                                    <strong>
-                                        @lang('lang_v1.change_return'):
-                                    </strong>
-                                    <br />
-                                    <span class="lead text-bold change_return_span">0</span>
-                                    {!! Form::hidden('change_return', $change_return['amount'], [
-                                        'class' => 'form-control change_return input_number',
-                                        'required',
-                                        'id' => 'change_return',
-                                    ]) !!}
-                                    <!-- <span class="lead text-bold total_quantity">0</span> -->
-                                    @if (!empty($change_return['id']))
-                                        <input type="hidden" name="change_return_id"
-                                            value="{{ $change_return['id'] }}">
-                                    @endif
+                                <div class="pos-pay-divider"></div>
+
+                                <div class="pos-pay-row pos-pay-row-total">
+                                    <span class="pos-pay-label">@lang('sale.total')</span>
+                                    <span class="lead text-bold total_payable_span pos-pay-value">0</span>
                                 </div>
 
-                                <div class="col-md-12">
-                                    <hr>
-                                    <strong>
-                                        @lang('lang_v1.balance'):
-                                    </strong>
-                                    <br />
-                                    <span class="lead text-bold balance_due">0</span>
-                                    <input type="hidden" id="in_balance_due" value=0>
+                                <div class="pos-pay-row pos-pay-row-paid">
+                                    <span class="pos-pay-label">Paid Amount</span>
+                                    <span class="lead text-bold total_paying pos-pay-value">0</span>
                                 </div>
+                                <input type="hidden" id="total_paying_input">
 
+                                <div class="pos-pay-divider"></div>
 
+                                <div class="pos-pay-row pos-pay-row-change pos-pay-change-wrap">
+                                    <span class="pos-pay-label">Change</span>
+                                    <span class="lead text-bold change_return_span pos-pay-value">0</span>
+                                </div>
+                                {!! Form::hidden('change_return', $change_return['amount'], [
+                                    'class' => 'form-control change_return input_number',
+                                    'required',
+                                    'id' => 'change_return',
+                                ]) !!}
+                                @if (!empty($change_return['id']))
+                                    <input type="hidden" name="change_return_id"
+                                        value="{{ $change_return['id'] }}">
+                                @endif
 
+                                <div class="pos-pay-row pos-pay-row-due pos-pay-due-wrap">
+                                    <span class="pos-pay-label">Balance Due</span>
+                                    <span class="lead text-bold balance_due pos-pay-value">0</span>
+                                </div>
+                                <input type="hidden" id="in_balance_due" value=0>
                             </div>
                             <!-- /.box-body -->
                         </div>
@@ -213,7 +207,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="tw-dw-btn tw-dw-btn-neutral tw-text-white" data-dismiss="modal">@lang('messages.close')</button>
-                <button type="submit" class="tw-dw-btn tw-dw-btn-primary tw-text-white" id="pos-save">@lang('sale.finalize_payment')</button>
+                <button type="submit" class="tw-dw-btn tw-dw-btn-primary tw-text-white pos-btn-complete" id="pos-save">Complete Sale</button>
             </div>
         </div><!-- /.modal-content -->
     </div><!-- /.modal-dialog -->

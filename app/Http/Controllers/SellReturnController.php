@@ -496,16 +496,16 @@ class SellReturnController extends Controller
                     foreach ($sell_lines as $sell_line) {
                         if ($sell_line->quantity_returned > 0) {
                             $quantity = 0;
-                            $quantity_before = $this->transactionUtil->num_f($sell_line->quantity_returned);
+                            $quantity_before = $sell_line->quantity_returned;
 
                             $sell_line->quantity_returned = 0;
                             $sell_line->save();
 
                             //update quantity sold in corresponding purchase lines
-                            $this->transactionUtil->updateQuantitySoldFromSellLine($sell_line, 0, $quantity_before);
+                            $this->transactionUtil->updateQuantitySoldFromSellLine($sell_line, 0, $quantity_before, false);
 
                             // Update quantity in variation location details
-                            $this->productUtil->updateProductQuantity($sell_return->location_id, $sell_line->product_id, $sell_line->variation_id, 0, $quantity_before);
+                            $this->productUtil->updateProductQuantity($sell_return->location_id, $sell_line->product_id, $sell_line->variation_id, 0, $quantity_before, null, false);
                         }
                     }
 

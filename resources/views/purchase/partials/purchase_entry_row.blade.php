@@ -78,13 +78,17 @@
                 $max_quantity = !empty($purchase_requisition_line) ? $purchase_requisition_line->quantity - $purchase_requisition_line->po_quantity_purchased : $max_quantity;
 
                 $quantity_value = !empty($imported_data) ? $imported_data['quantity'] : $quantity_value;
+            $qty_min = $product->unit->allow_decimal == 1 ? '0.001' : '1';
+            $qty_step = $product->unit->allow_decimal == 1 ? '0.001' : '1';
             @endphp
             
             <input type="text" 
                 name="purchases[{{$row_count}}][quantity]" 
                 value="{{@format_quantity($quantity_value)}}"
-                class="form-control input-sm purchase_quantity input_number mousetrap"
+                class="form-control input-sm purchase_quantity input_number mousetrap input_quantity"
                 required
+                data-min="{{$qty_min}}"
+                data-step="{{$qty_step}}"
                 data-rule-abs_digit={{$check_decimal}}
                 data-msg-abs_digit="{{__('lang_v1.decimal_value_not_allowed')}}"
                 @if(!empty($max_quantity))
@@ -102,7 +106,7 @@
                 <br>
                 <select name="purchases[{{$row_count}}][sub_unit_id]" class="form-control input-sm sub_unit">
                     @foreach($sub_units as $key => $value)
-                        <option value="{{$key}}" data-multiplier="{{$value['multiplier']}}">
+                        <option value="{{$key}}" data-multiplier="{{$value['multiplier']}}" data-unit_name="{{$value['name']}}" data-allow_decimal="{{$value['allow_decimal']}}">
                             {{$value['name']}}
                         </option>
                     @endforeach

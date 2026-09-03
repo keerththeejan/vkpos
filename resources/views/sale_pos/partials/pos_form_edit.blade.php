@@ -30,7 +30,7 @@
 					<button type="button" class="btn btn-default bg-white btn-flat" data-toggle="modal" data-target="#configure_search_modal" title="{{__('lang_v1.configure_product_search')}}"><i class="fas fa-search-plus"></i></button>
 				</div>
                 {{-- Removed mousetrap class as it was causing issue with barcode scanning --}}
-				{!! Form::text('search_product', null, ['class' => 'form-control', 'id' => 'search_product', 'placeholder' => __('lang_v1.search_product_placeholder'),
+				{!! Form::text('search_product', null, ['class' => 'form-control', 'id' => 'search_product', 'placeholder' => 'Enter Product Name / SKU / Scan Barcode',
 				'autofocus' => true,
 				]); !!}
 				<span class="input-group-btn">
@@ -188,27 +188,33 @@
 				$hide_tax = 'hide';
 			}
 		@endphp
-		<table class="table table-condensed table-bordered table-striped table-responsive" id="pos_table">
+		<table class="table table-condensed table-bordered table-responsive pos-excel-table" id="pos_table">
 			<thead>
 				<tr>
-					<th class="tex-center @if(!empty($pos_settings['inline_service_staff'])) col-md-3 @else col-md-4 @endif">	
+					<th class="pos-col-num">#</th>
+					<th class="pos-col-product">
 						@lang('sale.product') @show_tooltip(__('lang_v1.tooltip_sell_product_column'))
 					</th>
-					<th class="text-center col-md-3">
+					<th class="pos-col-sku">SKU / Barcode</th>
+					<th class="pos-col-qty">
 						@lang('sale.qty')
 					</th>
+					<th class="pos-col-unit">Unit</th>
 					@if(!empty($pos_settings['inline_service_staff']))
-						<th class="text-center col-md-2">
+						<th class="pos-col-staff">
 							@lang('restaurant.service_staff')
 						</th>
 					@endif
-					<th class="text-center col-md-2 {{$hide_tax}}">
+					<th class="pos-col-price {{$hide_tax}}">
 						@lang('sale.price_inc_tax')
 					</th>
-					<th class="text-center col-md-2">
+					<th class="pos-col-discount">
+						@lang('sale.discount')
+					</th>
+					<th class="pos-col-subtotal">
 						@lang('sale.subtotal')
 					</th>
-					<th class="text-center"><i class="fas fa-times" aria-hidden="true"></i></th>
+					<th class="pos-col-action">Action</th>
 				</tr>
 			</thead>
 			<tbody>

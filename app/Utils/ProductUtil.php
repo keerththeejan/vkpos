@@ -531,6 +531,8 @@ class ProductUtil extends Util
             'vld.qty_available',
             'variations.default_sell_price',
             'variations.sell_price_inc_tax',
+            'variations.default_purchase_price',
+            'variations.dpp_inc_tax',
             'variations.id as variation_id',
             'variations.combo_variations',  //Used in combo products
             'units.short_name as unit',
@@ -828,7 +830,8 @@ class ProductUtil extends Util
         if ($status_before == 'final' && $transaction->status == 'draft') {
             foreach ($input['products'] as $product) {
                 if (! empty($product['transaction_sell_lines_id'])) {
-                    $this->updateProductQuantity($input['location_id'], $product['product_id'], $product['variation_id'], $product['quantity'], 0, null, false);
+                    $qty = $this->quantityInProductUnit($product, $uf_data);
+                    $this->updateProductQuantity($input['location_id'], $product['product_id'], $product['variation_id'], $qty, 0, null, false);
 
                     //Adjust quantity for combo items.
                     if (isset($product['product_type']) && $product['product_type'] == 'combo') {
@@ -843,7 +846,7 @@ class ProductUtil extends Util
             }
         } elseif ($status_before == 'draft' && $transaction->status == 'final') {
             foreach ($input['products'] as $product) {
-                $uf_quantity = $uf_data ? $this->num_uf($product['quantity']) : $product['quantity'];
+                $uf_quantity = $this->quantityInProductUnit($product, $uf_data);
 
                 $this->decreaseProductQuantity(
                     $product['product_id'],
@@ -862,7 +865,7 @@ class ProductUtil extends Util
         } elseif ($status_before == 'final' && $transaction->status == 'final') {
             foreach ($input['products'] as $product) {
                 if (empty($product['transaction_sell_lines_id'])) {
-                    $uf_quantity = $uf_data ? $this->num_uf($product['quantity']) : $product['quantity'];
+                    $uf_quantity = $this->quantityInProductUnit($product, $uf_data);
                     $this->decreaseProductQuantity(
                         $product['product_id'],
                         $product['variation_id'],
@@ -1145,7 +1148,6 @@ class ProductUtil extends Util
                 }
 
                 if ($qty > 0) {
-                    $qty_formated = $this->num_f($qty);
                     //Calculate transaction total
                     $purchase_total += ($purchase_price_inc_tax * $qty);
                     $variation_id = $product->variations->first()->id;
@@ -1163,7 +1165,7 @@ class ProductUtil extends Util
                     $purchase_line->lot_number = $lot_number;
                     $purchase_lines[] = $purchase_line;
 
-                    $this->updateProductQuantity($location_id, $product->id, $variation_id, $qty_formated);
+                    $this->updateProductQuantity($location_id, $product->id, $variation_id, $qty, 0, null, false);
                 }
 
                 //create transaction & purchase lines
@@ -1206,17 +1208,17 @@ class ProductUtil extends Util
 
         foreach ($input_data as $data) {
             $multiplier = 1;
-            if (isset($data['sub_unit_id']) && $data['sub_unit_id'] == $data['product_unit_id']) {
+            if (isset($data['sub_unit_id']) && isset($data['product_unit_id']) && $data['sub_unit_id'] == $data['product_unit_id']) {
                 unset($data['sub_unit_id']);
             }
 
-            if (! empty($data['sub_unit_id'])) {
-                $unit = Unit::find($data['sub_unit_id']);
-                $multiplier = ! empty($unit->base_unit_multiplier) ? $unit->base_unit_multiplier : 1;
+            $product_unit_id = $data['product_unit_id'] ?? null;
+            if (empty($product_unit_id) && ! empty($data['product_id'])) {
+                $product_unit_id = optional(Product::find($data['product_id']))->unit_id;
             }
+            $multiplier = $this->getQuantityMultiplier($product_unit_id, $data['sub_unit_id'] ?? null);
             $new_quantity = $this->num_uf($data['quantity']) * $multiplier;
 
-            $new_quantity_f = $this->num_f($new_quantity);
             $old_qty = 0;
             //update existing purchase line
             if (isset($data['purchase_line_id'])) {
@@ -1233,7 +1235,7 @@ class ProductUtil extends Util
 
                 //Increase quantity only if status is received
                 if ($transaction->status == 'received') {
-                    $this->updateProductQuantity($transaction->location_id, $data['product_id'], $data['variation_id'], $new_quantity_f, 0, $currency_details);
+                    $this->updateProductQuantity($transaction->location_id, $data['product_id'], $data['variation_id'], $new_quantity, 0, $currency_details, false);
                 }
             }
 
@@ -1355,12 +1357,10 @@ class ProductUtil extends Util
      */
     public function updateProductStock($status_before, $transaction, $product_id, $variation_id, $new_quantity, $old_quantity, $currency_details)
     {
-        $new_quantity_f = $this->num_f($new_quantity);
-        $old_qty = $this->num_f($old_quantity);
         //Update quantity for existing products
         if ($status_before == 'received' && $transaction->status == 'received') {
             //if status received update existing quantity
-            $this->updateProductQuantity($transaction->location_id, $product_id, $variation_id, $new_quantity_f, $old_qty, $currency_details);
+            $this->updateProductQuantity($transaction->location_id, $product_id, $variation_id, $new_quantity, $old_quantity, $currency_details, false);
         } elseif ($status_before == 'received' && $transaction->status != 'received') {
             //decrease quantity only if status changed from received to not received
             $this->decreaseProductQuantity(
@@ -1370,7 +1370,7 @@ class ProductUtil extends Util
                 $old_quantity
             );
         } elseif ($status_before != 'received' && $transaction->status == 'received') {
-            $this->updateProductQuantity($transaction->location_id, $product_id, $variation_id, $new_quantity_f, 0, $currency_details);
+            $this->updateProductQuantity($transaction->location_id, $product_id, $variation_id, $new_quantity, 0, $currency_details, false);
         }
     }
 
@@ -1384,16 +1384,13 @@ class ProductUtil extends Util
     public function changePurchaseLineUnit($purchase_line, $business_id)
     {
         $base_unit = $purchase_line->product->unit;
-        $sub_units = $base_unit->sub_units;
+        $unit_details = $this->getSubUnits($business_id, $base_unit->id, false, $purchase_line->product_id);
 
         $sub_unit_id = $purchase_line->sub_unit_id;
+        $sub_unit = ! empty($sub_unit_id) && isset($unit_details[$sub_unit_id]) ? $unit_details[$sub_unit_id] : null;
 
-        $sub_unit = $sub_units->filter(function ($item) use ($sub_unit_id) {
-            return $item->id == $sub_unit_id;
-        })->first();
-
-        if (! empty($sub_unit)) {
-            $multiplier = $sub_unit->base_unit_multiplier;
+        if (! empty($sub_unit) && ! empty($sub_unit['multiplier']) && (float) $sub_unit['multiplier'] != 1.0) {
+            $multiplier = (float) $sub_unit['multiplier'];
             $purchase_line->quantity = $purchase_line->quantity / $multiplier;
             $purchase_line->pp_without_discount = $purchase_line->pp_without_discount * $multiplier;
             $purchase_line->purchase_price = $purchase_line->purchase_price * $multiplier;
@@ -1404,8 +1401,7 @@ class ProductUtil extends Util
             $purchase_line->quantity_adjusted = $purchase_line->quantity_adjusted / $multiplier;
         }
 
-        //SubUnits
-        $purchase_line->sub_units_options = $this->getSubUnits($business_id, $base_unit->id, false, $purchase_line->product_id);
+        $purchase_line->sub_units_options = $unit_details;
 
         return $purchase_line;
     }
@@ -1418,7 +1414,8 @@ class ProductUtil extends Util
      */
     public function changeSellLineUnit($business_id, $sell_line)
     {
-        $unit_details = $this->getSubUnits($business_id, $sell_line->unit_id, false, $sell_line->product_id);
+        $product_unit_id = $sell_line->unit_id ?? optional($sell_line->product)->unit_id;
+        $unit_details = $this->getSubUnits($business_id, $product_unit_id, false, $sell_line->product_id);
 
         $sub_unit = null;
         $sub_unit_id = $sell_line->sub_unit_id;
@@ -1428,7 +1425,7 @@ class ProductUtil extends Util
             }
         }
 
-        if (! empty($sub_unit)) {
+        if (! empty($sub_unit) && ! empty($sub_unit['multiplier']) && (float) $sub_unit['multiplier'] != 0.0) {
             $multiplier = $sub_unit['multiplier'];
             $sell_line->quantity_ordered = $sell_line->quantity_ordered / $multiplier;
             $sell_line->item_tax = $sell_line->item_tax * $multiplier;
@@ -1441,6 +1438,111 @@ class ProductUtil extends Util
         }
 
         return $sell_line;
+    }
+
+    /**
+     * Convert a product's stock, prices and historical line quantities
+     * when its unit is changed to another unit in the same family.
+     * Example: KG (1000 G) -> G multiplies stock by 1000 and divides prices by 1000.
+     */
+    public function convertProductBetweenRelatedUnits($product, $old_unit_id, $new_unit_id)
+    {
+        if (empty($product) || empty($old_unit_id) || empty($new_unit_id) || $old_unit_id == $new_unit_id) {
+            return false;
+        }
+
+        $qty_factor = (float) $this->getMultiplierOf2Units($new_unit_id, $old_unit_id);
+        if ($qty_factor <= 0 || abs($qty_factor - 1) < 0.0000000001) {
+            return false;
+        }
+
+        $old_unit = Unit::find($old_unit_id);
+        $new_unit = Unit::find($new_unit_id);
+        if (empty($old_unit) || empty($new_unit) || $old_unit->familyBaseUnitId() != $new_unit->familyBaseUnitId()) {
+            return false;
+        }
+
+        $product_id = $product->id;
+        $variation_ids = Variation::where('product_id', $product_id)->pluck('id')->toArray();
+        if (empty($variation_ids)) {
+            return false;
+        }
+
+        $qty_sql = $qty_factor;
+        $price_sql = $qty_factor;
+
+        VariationLocationDetails::where('product_id', $product_id)
+            ->update(['qty_available' => DB::raw('qty_available * '.$qty_sql)]);
+
+        if (! is_null($product->alert_quantity)) {
+            $product->alert_quantity = $product->alert_quantity * $qty_factor;
+        }
+
+        Variation::where('product_id', $product_id)
+            ->update([
+                'default_purchase_price' => DB::raw('default_purchase_price / '.$price_sql),
+                'dpp_inc_tax' => DB::raw('dpp_inc_tax / '.$price_sql),
+                'default_sell_price' => DB::raw('default_sell_price / '.$price_sql),
+                'sell_price_inc_tax' => DB::raw('sell_price_inc_tax / '.$price_sql),
+            ]);
+
+        VariationGroupPrice::whereIn('variation_id', $variation_ids)
+            ->where('price_type', '!=', 'percentage')
+            ->update([
+                'price_inc_tax' => DB::raw('price_inc_tax / '.$price_sql),
+            ]);
+
+        PurchaseLine::where('product_id', $product_id)
+            ->where(function ($q) {
+                $q->whereNull('sub_unit_id')->orWhere('sub_unit_id', 0);
+            })
+            ->update(['sub_unit_id' => $old_unit_id]);
+
+        PurchaseLine::where('product_id', $product_id)
+            ->update([
+                'quantity' => DB::raw('quantity * '.$qty_sql),
+                'quantity_sold' => DB::raw('quantity_sold * '.$qty_sql),
+                'quantity_adjusted' => DB::raw('quantity_adjusted * '.$qty_sql),
+                'quantity_returned' => DB::raw('quantity_returned * '.$qty_sql),
+                'mfg_quantity_used' => DB::raw('mfg_quantity_used * '.$qty_sql),
+                'po_quantity_purchased' => DB::raw('po_quantity_purchased * '.$qty_sql),
+                'pp_without_discount' => DB::raw('pp_without_discount / '.$price_sql),
+                'purchase_price' => DB::raw('purchase_price / '.$price_sql),
+                'purchase_price_inc_tax' => DB::raw('purchase_price_inc_tax / '.$price_sql),
+                'item_tax' => DB::raw('item_tax / '.$price_sql),
+            ]);
+
+        TransactionSellLine::where('product_id', $product_id)
+            ->where(function ($q) {
+                $q->whereNull('sub_unit_id')->orWhere('sub_unit_id', 0);
+            })
+            ->update(['sub_unit_id' => $old_unit_id]);
+
+        TransactionSellLine::where('product_id', $product_id)
+            ->update([
+                    'quantity' => DB::raw('quantity * '.$qty_sql),
+                    'quantity_returned' => DB::raw('quantity_returned * '.$qty_sql),
+                    'so_quantity_invoiced' => DB::raw('so_quantity_invoiced * '.$qty_sql),
+                    'unit_price_before_discount' => DB::raw('unit_price_before_discount / '.$price_sql),
+                    'unit_price' => DB::raw('unit_price / '.$price_sql),
+                    'unit_price_inc_tax' => DB::raw('unit_price_inc_tax / '.$price_sql),
+                    'item_tax' => DB::raw('item_tax / '.$price_sql),
+                ]);
+
+        \App\StockAdjustmentLine::where('product_id', $product_id)
+            ->update([
+                'quantity' => DB::raw('quantity * '.$qty_sql),
+                'unit_price' => DB::raw('unit_price / '.$price_sql),
+            ]);
+
+        TransactionSellLinesPurchaseLines::whereIn('sell_line_id', function ($q) use ($product_id) {
+            $q->select('id')->from('transaction_sell_lines')->where('product_id', $product_id);
+        })->update([
+            'quantity' => DB::raw('quantity * '.$qty_sql),
+            'qty_returned' => DB::raw('qty_returned * '.$qty_sql),
+        ]);
+
+        return true;
     }
 
     /**

@@ -127,7 +127,7 @@
         <span class="input-group-addon">
             <i class="fa fa-map-marker"></i>
         </span>
-        {!! Form::text('zip_code', null, ['class' => 'form-control','placeholder' => __('business.zip_code_placeholder'), 'required']); !!}
+        {!! Form::text('zip_code', null, ['class' => 'form-control','placeholder' => __('business.zip_code_placeholder'), 'required', 'maxlength' => 20]); !!}
     </div>
     </div>
 </div>
@@ -169,7 +169,7 @@
                 <span class="input-group-addon">
                     <i class="fa fa-info"></i>
                 </span>
-                {!! Form::text('tax_label_1', null, ['class' => 'form-control','placeholder' => __('business.tax_1_placeholder')]); !!}
+                {!! Form::text('tax_label_1', null, ['class' => 'form-control','placeholder' => __('business.tax_1_placeholder'), 'maxlength' => 50]); !!}
             </div>
         </div>
     </div>
@@ -193,7 +193,7 @@
                 <span class="input-group-addon">
                     <i class="fa fa-info"></i>
                 </span>
-                {!! Form::text('tax_label_2', null, ['class' => 'form-control','placeholder' => __('business.tax_1_placeholder')]); !!}
+                {!! Form::text('tax_label_2', null, ['class' => 'form-control','placeholder' => __('business.tax_1_placeholder'), 'maxlength' => 50]); !!}
             </div>
         </div>
     </div>
@@ -217,7 +217,7 @@
                 <span class="input-group-addon">
                     <i class="fa fa-calendar"></i>
                 </span>
-                {!! Form::select('fy_start_month', $months, null, ['class' => 'form-control select2_register', 'required', 'style' => 'width:100%;']); !!}
+                {!! Form::select('fy_start_month', $months, 1, ['class' => 'form-control select2_register', 'required', 'style' => 'width:100%;']); !!}
             </div>
         </div>
     </div>
@@ -228,7 +228,7 @@
                 <span class="input-group-addon">
                     <i class="fa fa-calculator"></i>
                 </span>
-                {!! Form::select('accounting_method', $accounting_methods, null, ['class' => 'form-control select2_register', 'required', 'style' => 'width:100%;']); !!}
+                {!! Form::select('accounting_method', $accounting_methods, 'fifo', ['class' => 'form-control select2_register', 'required', 'style' => 'width:100%;']); !!}
             </div>
         </div>
     </div>
@@ -249,7 +249,7 @@
             <span class="input-group-addon">
                 <i class="fa fa-info"></i>
             </span>
-            {!! Form::text('surname', null, ['class' => 'form-control','placeholder' => __('business.prefix_placeholder')]); !!}
+            {!! Form::text('surname', null, ['class' => 'form-control','placeholder' => __('business.prefix_placeholder'), 'maxlength' => 191]); !!}
         </div>
     </div>
 </div>

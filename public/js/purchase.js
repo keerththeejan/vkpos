@@ -714,6 +714,17 @@ $(document).ready(function() {
                 .data('multiplier')
         );
 
+        var allow_decimal = parseInt(
+            $(this)
+                .find(':selected')
+                .data('allow_decimal'),
+            10
+        );
+        var qty_element = tr.find('input.purchase_quantity');
+        if (typeof __applyQtyDecimalRules === 'function') {
+            __applyQtyDecimalRules(qty_element, allow_decimal);
+        }
+
         var unit_sp = base_unit_selling_price * multiplier;
         var unit_cost = base_unit_cost * multiplier;
 

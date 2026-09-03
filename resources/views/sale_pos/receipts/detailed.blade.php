@@ -866,6 +866,11 @@
 <style type="text/css">
     body {
         color: #000000;
+        font-family: Arial, Helvetica, Inter, Roboto, "Noto Sans Tamil", "Noto Sans", sans-serif;
+        font-weight: 600;
+    }
+    .color-555, .color-555 *, .text-muted, .text-muted-imp {
+        color: #111827 !important;
     }
 	
 @media print {
@@ -874,6 +879,10 @@
         page-break-inside: auto !important; /* Let rows break naturally */
         page-break-after: auto;
         page-break-before: auto;
+    }
+    * {
+        font-family: Arial, Helvetica, Inter, Roboto, "Noto Sans Tamil", "Noto Sans", sans-serif !important;
+        color: #000 !important;
     }
 }
 </style>

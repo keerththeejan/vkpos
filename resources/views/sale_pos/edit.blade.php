@@ -20,8 +20,8 @@
 	<div class="row mb-12">
 		<div class="col-md-12 tw-pt-0 tw-mb-14">
 			<div class="row tw-flex lg:tw-flex-row md:tw-flex-col sm:tw-flex-col tw-flex-col tw-items-start md:tw-gap-4">
-				<div class="tw-px-3 tw-w-full  lg:tw-px-0 lg:tw-pr-0 @if(empty($pos_settings['hide_product_suggestion'])) lg:tw-w-[60%]  @else lg:tw-w-[100%] @endif">
-					<div class="tw-shadow-[rgba(17,_17,_26,_0.1)_0px_0px_16px] tw-rounded-2xl tw-bg-white tw-mb-2 md:tw-mb-8 tw-p-2">
+				<div class="tw-px-3 tw-w-full lg:tw-px-0 pos-excel-main">
+					<div class="pos-excel-sheet tw-bg-white tw-mb-2 md:tw-mb-8 tw-p-2">
 						<div class="box-body pb-0">
 							{!! Form::hidden('location_id', $transaction->location_id, ['id' => 'location_id', 'data-receipt_printer_type' => !empty($location_printer_type) ? $location_printer_type : 'browser', 'data-default_payment_accounts' => $transaction->location->default_payment_accounts]); !!}
 							<!-- sub_type -->
@@ -47,7 +47,7 @@
 						</div>
 					</div>
 				@if(empty($pos_settings['hide_product_suggestion'])  && !isMobile() && empty($only_payment))
-					<div class="col-md-5 no-padding">
+					<div class="col-md-5 no-padding pos-product-cards-panel" aria-hidden="true">
 						@include('sale_pos.partials.pos_sidebar')
 					</div>
 				@endif
@@ -111,20 +111,105 @@
 
 @section('css')
 	<style type="text/css">
-		/*CSS to print receipts*/
-		.print_section{
+		.print_section,
+		#receipt_section {
 		    display: none;
 		}
-		@media print{
-		    .print_section{
+		@media print {
+			.no-print,
+			.pos-header,
+			.pos-form-actions,
+			.main-footer,
+			.modal,
+			.scrolltop,
+			nav,
+			aside {
+				display: none !important;
+			}
+		    .print_section,
+		    #receipt_section {
 		        display: block !important;
+		        color: #000000 !important;
+		        background: #ffffff !important;
+		        font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
+		        font-weight: 700 !important;
+		        opacity: 1 !important;
+		        -webkit-print-color-adjust: exact;
+		        print-color-adjust: exact;
+		    }
+		    #receipt_section *,
+		    .print_section * {
+		        color: #000000 !important;
+		        font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
+		        font-weight: 700 !important;
+		        opacity: 1 !important;
+		        text-shadow: none !important;
+		        -webkit-print-color-adjust: exact;
+		        print-color-adjust: exact;
+		        -webkit-font-smoothing: none;
+		        word-break: normal !important;
+		    }
+		    #receipt_section .shop-name,
+		    #receipt_section .shop-name *,
+		    #receipt_section .shop-meta,
+		    #receipt_section .shop-meta *,
+		    .print_section .shop-name,
+		    .print_section .shop-name *,
+		    .print_section .shop-meta,
+		    .print_section .shop-meta * {
+		        font-family: "Noto Sans Tamil", Latha, "Nirmala UI", sans-serif !important;
+		        color: #000000 !important;
+		        font-weight: 700 !important;
+		    }
+		    #receipt_section .shop-name,
+		    #receipt_section .shop-name *,
+		    .print_section .shop-name,
+		    .print_section .shop-name * {
+		        font-weight: 800 !important;
+		    }
+		    #receipt_section .row.em .lbl,
+		    #receipt_section .row.em .val,
+		    #receipt_section .total,
+		    #receipt_section .total *,
+		    #receipt_section .change,
+		    #receipt_section .change *,
+		    #receipt_section .balance-due,
+		    #receipt_section .balance-due *,
+		    #receipt_section .paid-amount,
+		    #receipt_section .paid-amount *,
+		    .print_section .row.em .lbl,
+		    .print_section .row.em .val,
+		    .print_section .total,
+		    .print_section .total *,
+		    .print_section .change,
+		    .print_section .change *,
+		    .print_section .balance-due,
+		    .print_section .balance-due *,
+		    .print_section .paid-amount,
+		    .print_section .paid-amount * {
+		        font-weight: 800 !important;
+		        color: #000000 !important;
+		    }
+		    #receipt_section .sep,
+		    .print_section .sep {
+		        border-bottom-color: #000000 !important;
+		        opacity: 1 !important;
+		    }
+		    .color-555,
+		    .color-555 *,
+		    .text-muted,
+		    .text-muted-imp {
+		        color: #000000 !important;
+		        opacity: 1 !important;
 		    }
 		}
 		@page {
-		    size: 3.1in auto;/* width height */
+		    size: 80mm auto;
 		    height: auto !important;
 		    margin-top: 0mm;
 		    margin-bottom: 0mm;
+		    margin-left: 2mm;
+		    margin-right: 2mm;
 		}
 		.overlay {
 			background: rgba(255,255,255,0) !important;

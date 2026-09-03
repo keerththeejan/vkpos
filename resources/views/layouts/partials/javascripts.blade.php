@@ -126,6 +126,10 @@
 @endif
 @yield('javascript')
 
+@if (!empty($pos_layout))
+    <script src="{{ asset('js/pos-premium-ui.js?v=' . $asset_v) }}"></script>
+@endif
+
 @if (Module::has('Essentials'))
     @includeIf('essentials::layouts.partials.footer_part')
 @endif

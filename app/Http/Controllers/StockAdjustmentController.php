@@ -210,11 +210,21 @@ class StockAdjustmentController extends Controller
                 $product_data = [];
 
                 foreach ($products as $product) {
+                    $adjustment_qty = $this->productUtil->num_uf($product['quantity']);
+                    $adjustment_price = $this->productUtil->num_uf($product['unit_price']);
+                    $adjustment_multiplier = $this->productUtil->getQuantityMultiplier(
+                        $product['product_unit_id'] ?? null,
+                        $product['sub_unit_id'] ?? null
+                    );
+                    $adjustment_qty = $adjustment_qty * $adjustment_multiplier;
+                    if ($adjustment_multiplier != 0 && $adjustment_multiplier != 1) {
+                        $adjustment_price = $adjustment_price / $adjustment_multiplier;
+                    }
                     $adjustment_line = [
                         'product_id' => $product['product_id'],
                         'variation_id' => $product['variation_id'],
-                        'quantity' => $this->productUtil->num_uf($product['quantity']),
-                        'unit_price' => $this->productUtil->num_uf($product['unit_price']),
+                        'quantity' => $adjustment_qty,
+                        'unit_price' => $adjustment_price,
                     ];
                     if (! empty($product['lot_no_line_id'])) {
                         //Add lot_no_line_id to stock adjustment line
@@ -227,7 +237,7 @@ class StockAdjustmentController extends Controller
                         $product['product_id'],
                         $product['variation_id'],
                         $input_data['location_id'],
-                        $this->productUtil->num_uf($product['quantity'])
+                        $adjustment_qty
                     );
                 }
 
@@ -353,7 +363,10 @@ class StockAdjustmentController extends Controller
                             $stock_adjustment->location_id,
                             $stock_adjustment_line->product_id,
                             $stock_adjustment_line->variation_id,
-                            $this->productUtil->num_f($stock_adjustment_line->quantity)
+                            $stock_adjustment_line->quantity,
+                            0,
+                            null,
+                            false
                         );
                         $line_ids[] = $stock_adjustment_line->id;
                     }

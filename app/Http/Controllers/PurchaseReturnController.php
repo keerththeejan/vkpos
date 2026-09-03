@@ -252,8 +252,9 @@ class PurchaseReturnController extends Controller
                 $return_quantity = ! empty($return_quantities[$purchase_line->id]) ? $this->productUtil->num_uf($return_quantities[$purchase_line->id]) : 0;
 
                 $multiplier = 1;
-                if (! empty($purchase_line->sub_unit->base_unit_multiplier)) {
-                    $multiplier = $purchase_line->sub_unit->base_unit_multiplier;
+                if (! empty($purchase_line->sub_unit_id)) {
+                    $product_unit_id = optional($purchase_line->product)->unit_id;
+                    $multiplier = $this->productUtil->getQuantityMultiplier($product_unit_id, $purchase_line->sub_unit_id);
                     $return_quantity = $return_quantity * $multiplier;
                 }
 

@@ -294,13 +294,15 @@ class TransactionUtil extends Util
         $products_modified_combo = [];
         foreach ($products as $product) {
             $multiplier = 1;
-            if (isset($product['sub_unit_id']) && $product['sub_unit_id'] == $product['product_unit_id']) {
+            if (isset($product['sub_unit_id']) && isset($product['product_unit_id']) && $product['sub_unit_id'] == $product['product_unit_id']) {
                 unset($product['sub_unit_id']);
             }
 
-            if (! empty($product['sub_unit_id']) && ! empty($product['base_unit_multiplier'])) {
-                $multiplier = $product['base_unit_multiplier'];
+            $product_unit_id = $product['product_unit_id'] ?? null;
+            if (empty($product_unit_id) && ! empty($product['product_id'])) {
+                $product_unit_id = optional(Product::find($product['product_id']))->unit_id;
             }
+            $multiplier = $this->getQuantityMultiplier($product_unit_id, $product['sub_unit_id'] ?? null);
 
             //Check if transaction_sell_lines_id is set, used when editing.
             if (! empty($product['transaction_sell_lines_id'])) {
@@ -1484,6 +1486,26 @@ class TransactionUtil extends Util
             $output['total_paid_label'] = $il->paid_label;
             $output['total_due'] = ($due == 0) ? 0 : $this->num_f($due, $show_currency, $business_details);
             $output['total_due_label'] = $il->total_due_label;
+
+            $change_return_amount = 0;
+            foreach ($transaction->payment_lines as $payment_line) {
+                if (! empty($payment_line->is_return)) {
+                    $change_return_amount += (float) $payment_line->amount;
+                }
+            }
+            $tendered_amount = (float) $paid_amount + $change_return_amount;
+            if ($tendered_amount < $transaction->final_total && (float) $paid_amount > $transaction->final_total) {
+                $tendered_amount = (float) $paid_amount;
+            }
+            $change_display = $tendered_amount - (float) $transaction->final_total;
+            $output['paid_tendered_uf'] = $tendered_amount;
+            $output['paid_tendered'] = $tendered_amount > 0 ? $this->num_f($tendered_amount, $show_currency, $business_details) : 0;
+            $output['change_amount_uf'] = $change_display > 0.00001 ? $change_display : 0;
+            $output['change_amount'] = $change_display > 0.00001 ? $this->num_f($change_display, $show_currency, $business_details) : 0;
+            $output['due_uf'] = $change_display < -0.00001 ? abs($change_display) : 0;
+            if ($output['due_uf'] > 0.00001) {
+                $output['total_due'] = $this->num_f($output['due_uf'], $show_currency, $business_details);
+            }
 
             if ($il->show_previous_bal == 1) {
                 $all_due = $this->getContactDue($transaction->contact_id);
@@ -4269,7 +4291,7 @@ class TransactionUtil extends Util
      */
     public function recalculateSellLineTotals($business_id, $sell_line)
     {
-        $unit_details = $this->getSubUnits($business_id, $sell_line->product->unit->id);
+        $unit_details = $this->getSubUnits($business_id, $sell_line->product->unit->id, false, $sell_line->product_id);
 
         $sub_unit = null;
         $sub_unit_id = $sell_line->sub_unit_id;
@@ -6138,8 +6160,9 @@ class TransactionUtil extends Util
         foreach ($sell->sell_lines as $sell_line) {
             if (array_key_exists($sell_line->id, $returns)) {
                 $multiplier = 1;
-                if (! empty($sell_line->sub_unit)) {
-                    $multiplier = $sell_line->sub_unit->base_unit_multiplier;
+                if (! empty($sell_line->sub_unit_id)) {
+                    $product_unit_id = optional($sell_line->product)->unit_id;
+                    $multiplier = $this->getQuantityMultiplier($product_unit_id, $sell_line->sub_unit_id);
                 }
 
                 $quantity = $returns[$sell_line->id] * $multiplier;

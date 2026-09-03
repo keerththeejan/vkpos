@@ -528,9 +528,10 @@ class SellPosController extends Controller
                     foreach ($input['products'] as $product) {
                         $decrease_qty = $this->productUtil
                             ->num_uf($product['quantity']);
-                        if (!empty($product['base_unit_multiplier'])) {
-                            $decrease_qty = $decrease_qty * $product['base_unit_multiplier'];
-                        }
+                        $decrease_qty = $decrease_qty * $this->productUtil->getQuantityMultiplier(
+                            $product['product_unit_id'] ?? null,
+                            $product['sub_unit_id'] ?? null
+                        );
 
                         if ($product['enable_stock']) {
                             $this->productUtil->decreaseProductQuantity(
@@ -912,6 +913,8 @@ class SellPosController extends Controller
             foreach ($sell_details as $key => $value) {
                 $variation = Variation::with('media')->findOrFail($value->variation_id);
                 $sell_details[$key]->media = $variation->media;
+                $sell_details[$key]->dpp_inc_tax = $variation->dpp_inc_tax;
+                $sell_details[$key]->default_purchase_price = $variation->default_purchase_price;
 
                 //If modifier or combo sell line then unset
                 if (!empty($sell_details[$key]->parent_sell_line_id)) {
@@ -2798,8 +2801,8 @@ class SellPosController extends Controller
                         $base_unit_multiplier = 1;
 
                         if (!empty($value['unit_id'])) {
-                            $unit = Unit::find($value['unit_id']);
-                            $base_unit_multiplier = !empty($unit->base_unit_multiplier) ? $unit->base_unit_multiplier : $base_unit_multiplier;
+                            $child_unit_id = optional(\App\Variation::find($value['variation_id'])->product)->unit_id ?? null;
+                            $base_unit_multiplier = $this->productUtil->getQuantityMultiplier($child_unit_id, $value['unit_id']);
                         }
 
                         $combo_variations[$key]['product_id'] = $sell_line->product_id;

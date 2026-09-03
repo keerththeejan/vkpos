@@ -308,8 +308,8 @@ class ImportSalesController extends Controller
                     //Check if sub unit
                     if ($unit->id != $product->unit_id) {
                         $temp['sub_unit_id'] = $unit->id;
-                        $temp['base_unit_multiplier'] = $unit->base_unit_multiplier;
-                        $line_quantity = ($line_quantity * $unit->base_unit_multiplier);
+                        $temp['base_unit_multiplier'] = $this->transactionUtil->getQuantityMultiplier($product->unit_id, $unit->id);
+                        $line_quantity = ($line_quantity * $temp['base_unit_multiplier']);
                     }
                 }
                 $order_total += ($temp['unit_price_inc_tax'] * $line_quantity);
@@ -383,19 +383,23 @@ class ImportSalesController extends Controller
 
             foreach ($sell_lines as $line) {
                 if ($line['enable_stock']) {
+                    $import_decrease_qty = $line['quantity'] * $this->productUtil->getQuantityMultiplier(
+                        $line['product_unit_id'] ?? null,
+                        $line['sub_unit_id'] ?? null
+                    );
                     $this->productUtil->decreaseProductQuantity(
                         $line['product_id'],
                         $line['variation_id'],
                         $location_id,
-                        $line['quantity']
+                        $import_decrease_qty
                     );
                 }
 
                 if ($line['type'] == 'combo') {
-                    $line_total_quantity = $line['quantity'];
-                    if (! empty($line['base_unit_multiplier'])) {
-                        $line_total_quantity = $line_total_quantity * $line['base_unit_multiplier'];
-                    }
+                    $line_total_quantity = $line['quantity'] * $this->productUtil->getQuantityMultiplier(
+                        $line['product_unit_id'] ?? null,
+                        $line['sub_unit_id'] ?? null
+                    );
 
                     //Decrease quantity of combo as well.
                     $combo_details = [];
@@ -405,10 +409,11 @@ class ImportSalesController extends Controller
                         //Multiply both subunit multiplier of child product and parent product to the quantity
                         $combo_variation_quantity = $combo_variation['quantity'];
                         if (! empty($combo_variation['unit_id'])) {
-                            $combo_variation_unit = Unit::find($combo_variation['unit_id']);
-                            if (! empty($combo_variation_unit->base_unit_multiplier)) {
-                                $combo_variation_quantity = $combo_variation_quantity * $combo_variation_unit->base_unit_multiplier;
-                            }
+                            $child_unit_id = optional($combo_variation_obj->product)->unit_id;
+                            $combo_variation_quantity = $combo_variation_quantity * $this->productUtil->getQuantityMultiplier(
+                                $child_unit_id,
+                                $combo_variation['unit_id']
+                            );
                         }
 
                         $combo_details[] = [

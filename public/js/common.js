@@ -114,6 +114,28 @@ $(document).ready(function () {
         return this.optional(element) || Number.isInteger(Math.abs(__number_uf(value)));
     });
 
+    window.__applyQtyDecimalRules = function (qty_element, allow_decimal) {
+        if (!qty_element || !qty_element.length) {
+            return;
+        }
+        allow_decimal = parseInt(allow_decimal, 10) ? 1 : 0;
+        qty_element.attr('data-decimal', allow_decimal);
+        if (allow_decimal) {
+            qty_element.attr('data-min', '0.001');
+            qty_element.attr('data-step', '0.001');
+        } else {
+            qty_element.attr('data-min', '1');
+            qty_element.attr('data-step', '1');
+        }
+        if (qty_element.closest('form').length && typeof qty_element.rules === 'function') {
+            try {
+                qty_element.rules('add', {
+                    abs_digit: allow_decimal ? false : true,
+                });
+            } catch (e) {}
+        }
+    };
+
     //Set global currency to be used in the application
     __currency_symbol = $('input#__symbol').val();
     __currency_thousand_separator = $('input#__thousand').val();

@@ -1,5 +1,19 @@
 <!-- business information here -->
 
+<style type="text/css">
+	.row, .row * {
+		font-family: Arial, Helvetica, Inter, Roboto, "Noto Sans Tamil", "Noto Sans", sans-serif !important;
+		color: #000000 !important;
+		font-weight: 600;
+	}
+	h2, h3, b, strong {
+		font-weight: 800 !important;
+		color: #000000 !important;
+	}
+	.color-555, .color-555 *, .text-muted, .text-muted-imp {
+		color: #111827 !important;
+	}
+</style>
 <div class="row" style="color: #000000 !important;">
 		<!-- Logo -->
 		@if(empty($receipt_details->letter_head))

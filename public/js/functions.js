@@ -383,39 +383,46 @@ function __sum_stock(table, class_name, label_direction = 'right') {
 }
 
 function __print_receipt(section_id = null) {
-    if (section_id) {
-        var imgs = document.getElementById(section_id).getElementsByTagName("img");
-    } else {
-        var imgs = document.images;
+    var printed = false;
+    function doPrint() {
+        if (printed) {
+            return;
+        }
+        printed = true;
+        window.print();
     }
-    
+    window.__vkposDoPrint = doPrint;
+
+    var imgs;
+    if (section_id) {
+        var section = document.getElementById(section_id);
+        imgs = section ? section.getElementsByTagName("img") : [];
+    } else {
+        imgs = document.images;
+    }
+
     img_len = imgs.length;
     if (img_len) {
         img_counter = 0;
 
-        [].forEach.call( imgs, function( img ) {
-            img.addEventListener( 'load', incrementImageCounter, false );
-        } );
+        [].forEach.call(imgs, function(img) {
+            if (img.complete) {
+                incrementImageCounter();
+            } else {
+                img.addEventListener('load', incrementImageCounter, false);
+                img.addEventListener('error', incrementImageCounter, false);
+            }
+        });
+        setTimeout(doPrint, 1800);
     } else {
-        setTimeout(function() {
-            window.print();
-
-            // setTimeout(function() {
-            //     $('#receipt_section').html('');
-            // }, 5000);
-            
-        }, 1000);
+        setTimeout(doPrint, 250);
     }
 }
 
 function incrementImageCounter() {
     img_counter++;
-    if ( img_counter === img_len ) {
-        window.print();
-        
-        // setTimeout(function() {
-        //     $('#receipt_section').html('');
-        // }, 5000);
+    if (img_counter >= img_len && typeof window.__vkposDoPrint === 'function') {
+        window.__vkposDoPrint();
     }
 }
 

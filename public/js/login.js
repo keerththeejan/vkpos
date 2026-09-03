@@ -24,7 +24,7 @@ $(document).ready(function() {
                     form.find('.body:eq(' + newIndex + ') label.error').remove();
                     form.find('.body:eq(' + newIndex + ') .error').removeClass('error');
                 }
-                form.validate().settings.ignore = ':disabled,:hidden';
+                form.validate().settings.ignore = ':disabled,:hidden:not(.select2_register)';
                 return form.valid();
             },
             onFinishing: function(event, currentIndex) {
@@ -49,7 +49,9 @@ $(document).ready(function() {
 
     $('form#business_register_form').validate({
         errorPlacement: function(error, element) {
-            if (element.parent('.input-group').length) {
+            if (element.hasClass('select2_register') || element.hasClass('select2-hidden-accessible')) {
+                error.insertAfter(element.next('.select2'));
+            } else if (element.parent('.input-group').length) {
                 error.insertAfter(element.parent());
             } else if (element.hasClass('input-icheck') && element.parent().hasClass('icheckbox_square-blue')) {
                 error.insertAfter(element.parent().parent().parent());
@@ -59,10 +61,11 @@ $(document).ready(function() {
         },
         rules: {
             name: 'required',
+            currency_id: 'required',
             email: {
                 email: true,
                 remote: {
-                    url: '/business/register/check-email',
+                    url: (typeof base_path !== 'undefined' ? base_path : '') + '/business/register/check-email',
                     type: 'post',
                     data: {
                         email: function() {
@@ -82,7 +85,7 @@ $(document).ready(function() {
                 required: true,
                 minlength: 4,
                 remote: {
-                    url: '/business/register/check-username',
+                    url: (typeof base_path !== 'undefined' ? base_path : '') + '/business/register/check-username',
                     type: 'post',
                     data: {
                         username: function() {
@@ -90,9 +93,6 @@ $(document).ready(function() {
                         },
                     },
                 },
-            },
-            website: {
-                url: true,
             },
         },
         messages: {

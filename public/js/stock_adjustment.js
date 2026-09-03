@@ -200,6 +200,35 @@ function update_table_row(tr) {
     update_table_total();
 }
 
+$(document).on('change', 'table#stock_adjustment_product_table select.sub_unit', function() {
+    var tr = $(this).closest('tr');
+    var selected_option = $(this).find(':selected');
+    var multiplier = parseFloat(selected_option.data('multiplier'));
+    var allow_decimal = parseInt(selected_option.data('allow_decimal'), 10);
+    tr.find('input.base_unit_multiplier').val(multiplier);
+
+    var base_unit_price = tr.find('input.hidden_base_unit_price').val();
+    var unit_price_element = tr.find('input.product_unit_price');
+    __write_number(unit_price_element, base_unit_price * multiplier);
+
+    var qty_element = tr.find('input.product_quantity');
+    if (typeof __applyQtyDecimalRules === 'function') {
+        __applyQtyDecimalRules(qty_element, allow_decimal);
+    }
+
+    var base_max_avlbl = qty_element.data('qty_available');
+    if (base_max_avlbl && multiplier) {
+        var max_avlbl = parseFloat(base_max_avlbl) / multiplier;
+        qty_element.attr('data-rule-max-value', max_avlbl);
+        if (qty_element.closest('form').length && typeof qty_element.rules === 'function') {
+            try {
+                qty_element.rules('add', { 'max-value': max_avlbl });
+            } catch (e) {}
+        }
+    }
+    update_table_row(tr);
+});
+
 $(document).on('shown.bs.modal', '.view_modal', function() {
     __currency_convert_recursively($('.view_modal'));
 });

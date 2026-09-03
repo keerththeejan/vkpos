@@ -47,6 +47,12 @@ class SetSessionData
             //set current financial year to session
             $financial_year = $business_util->getCurrentFinancialYear($business->id);
             $request->session()->put('financial_year', $financial_year);
+        } elseif ($request->session()->has('business')) {
+            $session_business = $request->session()->get('business');
+            if (is_object($session_business) && isset($session_business->quantity_precision) && (int) $session_business->quantity_precision < 4) {
+                $session_business->quantity_precision = 4;
+                $request->session()->put('business', $session_business);
+            }
         }
 
         return $next($request);

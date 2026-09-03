@@ -17,6 +17,7 @@ use DateTimeZone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 
 class BusinessController extends Controller
@@ -133,16 +134,19 @@ class BusinessController extends Controller
                     'country' => 'required|max:255',
                     'state' => 'required|max:255',
                     'city' => 'required|max:255',
-                    'zip_code' => 'required|max:255',
+                    'zip_code' => 'required|max:20',
                     'landmark' => 'required|max:255',
                     'time_zone' => 'required|max:255',
-                    'surname' => 'max:10',
+                    'surname' => 'nullable|max:191',
                     'email' => 'sometimes|nullable|email|unique:users|max:255',
                     'first_name' => 'required|max:255',
+                    'last_name' => 'nullable|max:191',
                     'username' => 'required|min:4|max:255|unique:users',
                     'password' => 'required|min:4|max:255',
                     'fy_start_month' => 'required',
                     'accounting_method' => 'required',
+                    'tax_label_1' => 'nullable|max:50',
+                    'tax_label_2' => 'nullable|max:50',
                 ],
                 [
                     'name.required' => __('validation.required', ['attribute' => __('business.business_name')]),
@@ -169,7 +173,9 @@ class BusinessController extends Controller
 
             //Create owner.
             $owner_details = $request->only(['surname', 'first_name', 'last_name', 'username', 'email', 'password', 'language']);
-
+            $owner_details['surname'] = $owner_details['surname'] ?? null;
+            $owner_details['last_name'] = $owner_details['last_name'] ?? null;
+            $owner_details['email'] = $owner_details['email'] ?? null;
             $owner_details['language'] = empty($owner_details['language']) ? config('app.locale') : $owner_details['language'];
 
             $user = User::create_user($owner_details);
@@ -184,7 +190,11 @@ class BusinessController extends Controller
             //Create the business
             $business_details['owner_id'] = $user->id;
             if (! empty($business_details['start_date'])) {
-                $business_details['start_date'] = Carbon::createFromFormat(config('constants.default_date_format'), $business_details['start_date'])->toDateString();
+                try {
+                    $business_details['start_date'] = Carbon::createFromFormat(config('constants.default_date_format'), $business_details['start_date'])->toDateString();
+                } catch (\Exception $dateException) {
+                    $business_details['start_date'] = Carbon::parse($business_details['start_date'])->toDateString();
+                }
             }
 
             //upload logo
@@ -211,8 +221,12 @@ class BusinessController extends Controller
             DB::commit();
 
             //Module function to be called after after business is created
-            if (config('app.env') != 'demo') {
-                $this->moduleUtil->getModuleData('after_business_created', ['business' => $business]);
+            try {
+                if (config('app.env') != 'demo') {
+                    $this->moduleUtil->getModuleData('after_business_created', ['business' => $business]);
+                }
+            } catch (\Exception $moduleException) {
+                \Log::emergency('File:'.$moduleException->getFile().'Line:'.$moduleException->getLine().'Message:'.$moduleException->getMessage());
             }
 
             //Process payment information if superadmin is installed & package information is present
@@ -231,6 +245,10 @@ class BusinessController extends Controller
             ];
 
             return redirect('login')->with('status', $output);
+        } catch (ValidationException $e) {
+            DB::rollBack();
+
+            return back()->withErrors($e->validator)->withInput();
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::emergency('File:'.$e->getFile().'Line:'.$e->getLine().'Message:'.$e->getMessage());

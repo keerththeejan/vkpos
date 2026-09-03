@@ -1,9 +1,9 @@
-<table style="width:100%; color: #000000 !important;">
+<table style="width:100%; color: #000000 !important; font-family: Arial, Helvetica, Inter, Roboto, 'Noto Sans Tamil', 'Noto Sans', sans-serif;">
 	<thead>
 		<tr>
 			<td>
 				<p class="text-right">
-					<small class="text-muted-imp">
+					<small style="color:#111827; font-weight:700;">
 						@if(!empty($receipt_details->invoice_no_prefix))
 							{!! $receipt_details->invoice_no_prefix !!}
 						@endif

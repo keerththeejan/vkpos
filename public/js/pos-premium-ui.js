@@ -52,6 +52,16 @@
     }
   }
 
+  function parseMoney(text) {
+    if (text == null) return 0;
+    var n = parseFloat(
+      String(text)
+        .replace(/,/g, '')
+        .replace(/[^0-9.\-]/g, '')
+    );
+    return isNaN(n) ? 0 : n;
+  }
+
   function syncKpis() {
     if (typeof jQuery === 'undefined') return;
     var $ = jQuery;
@@ -67,10 +77,54 @@
     if (elQty) elQty.textContent = qty;
     if (elSub) elSub.textContent = sub;
     if (elPay) elPay.textContent = pay;
+    var elExcelTotal = document.getElementById('pos_excel_total_display');
+    if (elExcelTotal) elExcelTotal.textContent = pay;
+    var elExcelPayable = document.getElementById('pos_excel_payable_display');
+    if (elExcelPayable) elExcelPayable.textContent = pay;
 
     var due = $('.contact_due_text span').first().text();
     var dueEl = document.getElementById('pos_cust_due');
     if (dueEl) dueEl.textContent = due && !$('.contact_due_text').hasClass('hide') ? due : '—';
+  }
+
+  function syncPaymentSummary() {
+    if (typeof jQuery === 'undefined') return;
+    var $ = jQuery;
+
+    var sub = ($('.price_total').first().text() || '0').toString().trim();
+    var disc = ($('#total_discount').first().text() || '0').toString().trim();
+    $('.pos-pay-subtotal-display').text(sub);
+    $('.pos-pay-discount-display').text(disc ? '- ' + disc.replace(/^\-\s*/, '') : '0');
+
+    var paid = parseMoney($('span.total_paying').first().text()) || parseMoney($('#total_paying_input').val());
+    var total = parseMoney($('span.total_payable_span').first().text()) || parseMoney($('#final_total_input').val());
+    var change = parseMoney($('span.change_return_span').first().text()) || parseMoney($('#change_return').val());
+    var bal = parseMoney($('#in_balance_due').val());
+
+    var $card = $('.pos-pay-summary-card');
+    if (!$card.length) return;
+
+    $card.removeClass('is-change is-balance-due is-settled');
+    if (paid + 0.0001 < total || bal > 0.004) {
+      $card.addClass('is-balance-due');
+    } else if (change > 0.004 || paid > total + 0.004) {
+      $card.addClass('is-change');
+    } else {
+      $card.addClass('is-settled');
+    }
+  }
+
+  function focusPaidAmount() {
+    if (typeof jQuery === 'undefined') return;
+    var $ = jQuery;
+    var $amt = $('#modal_payment .payment-amount').filter(':visible').first();
+    if (!$amt.length) $amt = $('#amount_0');
+    if ($amt.length) {
+      $amt.trigger('focus');
+      try {
+        $amt[0].select();
+      } catch (e) {}
+    }
   }
 
   function tickClock() {
@@ -108,17 +162,72 @@
       }
 
       $amt.val(val).trigger('change').trigger('keyup');
+      focusPaidAmount();
+    });
+  }
+
+  /**
+   * Hidden buying-price popover. Uses existing cost values already
+   * rendered on .pos-view-cost (no new price calculation).
+   */
+  function wireBuyingPricePopover() {
+    if (typeof jQuery === 'undefined') return;
+    var $ = jQuery;
+    var hideTimer = null;
+
+    function hidePop() {
+      $('#pos_cost_popover').removeClass('is-open');
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    }
+
+    function ensurePop() {
+      var $pop = $('#pos_cost_popover');
+      if (!$pop.length) {
+        $pop = $(
+          '<div id="pos_cost_popover" class="pos-cost-pop" role="tooltip">' +
+            '<div class="pos-cost-pop-label">Buying Price</div>' +
+            '<div class="pos-cost-pop-value"></div>' +
+          '</div>'
+        );
+        $('body').append($pop);
+      }
+      return $pop;
+    }
+
+    $(document).on('click', '.pos-view-cost', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var $btn = $(this);
+      var $pop = ensurePop();
+      $pop.find('.pos-cost-pop-value').text($btn.attr('data-cost-label') || '—');
+      var rect = this.getBoundingClientRect();
+      $pop.css({
+        top: rect.bottom + 8 + (window.scrollY || window.pageYOffset || 0) + 'px',
+        left: Math.max(8, rect.left + (window.scrollX || window.pageXOffset || 0)) + 'px',
+      }).addClass('is-open');
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(hidePop, 4000);
+    });
+
+    $(document).on('click', function (e) {
+      if ($(e.target).closest('.pos-view-cost, #pos_cost_popover').length) return;
+      hidePop();
+    });
+
+    $(document).on('keydown', function (e) {
+      if (e.key === 'Escape') hidePop();
     });
   }
 
   ready(function () {
     document.body.classList.add('premium-pos-body');
 
-    // Dark mode preference
-    var stored = localStorage.getItem('vkpos_pos_dark_mode');
-    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var enabled = stored === null ? prefersDark : stored === '1';
-    applyDarkMode(enabled);
+    // Always use the light, high-contrast POS theme.
+    applyDarkMode(false);
+    localStorage.setItem('vkpos_pos_dark_mode', '0');
 
     var toggle = document.getElementById('pos_dark_mode_toggle');
     if (toggle) {
@@ -191,15 +300,51 @@
 
     repairProductSearchUi();
     if (typeof jQuery !== 'undefined') {
-      jQuery(document).on('change', '#select_location_id', function () {
+      var $ = jQuery;
+      $(document).on('change', '#select_location_id', function () {
         setTimeout(repairProductSearchUi, 100);
+      });
+
+      $('#modal_payment').on('shown.bs.modal', function () {
+        syncPaymentSummary();
+        setTimeout(focusPaidAmount, 50);
+      });
+
+      $(document).on('click', '#modal_payment .pos-pay-summary-card, #modal_payment .pos-paid-amount-heading', function (e) {
+        if ($(e.target).is('input, select, textarea, button, a')) return;
+        focusPaidAmount();
+      });
+
+      $(document).on('change keyup', '#modal_payment .payment-amount', function () {
+        setTimeout(syncPaymentSummary, 30);
       });
     }
 
     wireCashQuick();
+    wireBuyingPricePopover();
     tickClock();
     setInterval(tickClock, 30000);
     syncKpis();
-    setInterval(syncKpis, 500);
+    syncPaymentSummary();
+    setInterval(function () {
+      syncKpis();
+      syncPaymentSummary();
+    }, 400);
+
+    var receipt = document.getElementById('receipt_section');
+    if (receipt) {
+      receipt.classList.remove('thermal-preview');
+      if (window.MutationObserver) {
+        new MutationObserver(function () {
+          receipt.classList.remove('thermal-preview');
+        }).observe(receipt, { attributes: true, attributeFilter: ['class'] });
+      }
+      window.addEventListener('afterprint', function () {
+        receipt.classList.remove('thermal-preview');
+        if (document.body.classList.contains('lockscreen') || document.body.classList.contains('premium-pos-body')) {
+          receipt.innerHTML = '';
+        }
+      });
+    }
   });
 })();

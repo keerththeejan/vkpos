@@ -292,13 +292,17 @@ $(document).on('change', 'select.sub_unit', function() {
         }
     }
     qty_element.attr('data-decimal', allow_decimal);
-    var abs_digit = true;
-    if (allow_decimal) {
-        abs_digit = false;
+    if (typeof __applyQtyDecimalRules === 'function') {
+        __applyQtyDecimalRules(qty_element, allow_decimal);
+    } else {
+        var abs_digit = true;
+        if (allow_decimal) {
+            abs_digit = false;
+        }
+        qty_element.rules('add', {
+            abs_digit: abs_digit,
+        });
     }
-    qty_element.rules('add', {
-        abs_digit: abs_digit,
-    });
 
     if (base_max_avlbl) {
         var max_avlbl = parseFloat(base_max_avlbl) / multiplier;

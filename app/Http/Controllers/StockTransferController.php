@@ -252,9 +252,11 @@ class StockTransferController extends Controller
 
                     $purchase_line_arr = $sell_line_arr;
 
-                    if (! empty($product['base_unit_multiplier'])) {
-                        $sell_line_arr['base_unit_multiplier'] = $product['base_unit_multiplier'];
-                    }
+                    $unit_multiplier = $this->productUtil->getQuantityMultiplier(
+                        $product['product_unit_id'] ?? null,
+                        $product['sub_unit_id'] ?? null
+                    );
+                    $sell_line_arr['base_unit_multiplier'] = $unit_multiplier;
 
                     $sell_line_arr['unit_price'] = $this->productUtil->num_uf($product['unit_price']);
                     $sell_line_arr['unit_price_inc_tax'] = $sell_line_arr['unit_price'];
@@ -273,10 +275,10 @@ class StockTransferController extends Controller
                         $purchase_line_arr['exp_date'] = $lot_details->exp_date;
                     }
 
-                    if (! empty($product['base_unit_multiplier'])) {
-                        $purchase_line_arr['quantity'] = $purchase_line_arr['quantity'] * $product['base_unit_multiplier'];
-                        $purchase_line_arr['purchase_price'] = $purchase_line_arr['purchase_price'] / $product['base_unit_multiplier'];
-                        $purchase_line_arr['purchase_price_inc_tax'] = $purchase_line_arr['purchase_price_inc_tax'] / $product['base_unit_multiplier'];
+                    if ($unit_multiplier != 1) {
+                        $purchase_line_arr['quantity'] = $purchase_line_arr['quantity'] * $unit_multiplier;
+                        $purchase_line_arr['purchase_price'] = $purchase_line_arr['purchase_price'] / $unit_multiplier;
+                        $purchase_line_arr['purchase_price_inc_tax'] = $purchase_line_arr['purchase_price_inc_tax'] / $unit_multiplier;
                     }
 
                     if (isset($purchase_line_arr['sub_unit_id']) && $purchase_line_arr['sub_unit_id'] == $purchase_line_arr['product_unit_id']) {
@@ -317,9 +319,10 @@ class StockTransferController extends Controller
                     if ($product['enable_stock']) {
                         $decrease_qty = $this->productUtil
                                     ->num_uf($product['quantity']);
-                        if (! empty($product['base_unit_multiplier'])) {
-                            $decrease_qty = $decrease_qty * $product['base_unit_multiplier'];
-                        }
+                        $decrease_qty = $decrease_qty * $this->productUtil->getQuantityMultiplier(
+                            $product['product_unit_id'] ?? null,
+                            $product['sub_unit_id'] ?? null
+                        );
 
                         $this->productUtil->decreaseProductQuantity(
                             $product['product_id'],
@@ -731,9 +734,11 @@ class StockTransferController extends Controller
 
                     $purchase_line_arr = $sell_line_arr;
 
-                    if (! empty($product['base_unit_multiplier'])) {
-                        $sell_line_arr['base_unit_multiplier'] = $product['base_unit_multiplier'];
-                    }
+                    $unit_multiplier = $this->productUtil->getQuantityMultiplier(
+                        $product['product_unit_id'] ?? null,
+                        $product['sub_unit_id'] ?? null
+                    );
+                    $sell_line_arr['base_unit_multiplier'] = $unit_multiplier;
 
                     $sell_line_arr['unit_price'] = $this->productUtil->num_uf($product['unit_price']);
                     $sell_line_arr['unit_price_inc_tax'] = $sell_line_arr['unit_price'];
@@ -755,10 +760,10 @@ class StockTransferController extends Controller
                         $purchase_line_arr['exp_date'] = $lot_details->exp_date;
                     }
 
-                    if (! empty($product['base_unit_multiplier'])) {
-                        $purchase_line_arr['quantity'] = $purchase_line_arr['quantity'] * $product['base_unit_multiplier'];
-                        $purchase_line_arr['purchase_price'] = $purchase_line_arr['purchase_price'] / $product['base_unit_multiplier'];
-                        $purchase_line_arr['purchase_price_inc_tax'] = $purchase_line_arr['purchase_price_inc_tax'] / $product['base_unit_multiplier'];
+                    if ($unit_multiplier != 1) {
+                        $purchase_line_arr['quantity'] = $purchase_line_arr['quantity'] * $unit_multiplier;
+                        $purchase_line_arr['purchase_price'] = $purchase_line_arr['purchase_price'] / $unit_multiplier;
+                        $purchase_line_arr['purchase_price_inc_tax'] = $purchase_line_arr['purchase_price_inc_tax'] / $unit_multiplier;
                     }
 
                     if (isset($purchase_line_arr['sub_unit_id']) && $purchase_line_arr['sub_unit_id'] == $purchase_line_arr['product_unit_id']) {
@@ -820,9 +825,10 @@ class StockTransferController extends Controller
                     if ($product['enable_stock']) {
                         $decrease_qty = $this->productUtil
                                     ->num_uf($product['quantity']);
-                        if (! empty($product['base_unit_multiplier'])) {
-                            $decrease_qty = $decrease_qty * $product['base_unit_multiplier'];
-                        }
+                        $decrease_qty = $decrease_qty * $this->productUtil->getQuantityMultiplier(
+                            $product['product_unit_id'] ?? null,
+                            $product['sub_unit_id'] ?? null
+                        );
 
                         $this->productUtil->decreaseProductQuantity(
                             $product['product_id'],

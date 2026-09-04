@@ -152,7 +152,7 @@
 
                                 <div class="pos-pay-row pos-pay-row-items">
                                     <span class="pos-pay-label">@lang('lang_v1.total_items')</span>
-                                    <span class="pos-pay-value lead text-bold total_quantity">0</span>
+                                    <span class="pos-pay-value lead text-bold pos_total_items">0</span>
                                 </div>
 
                                 <div class="pos-pay-row pos-pay-row-sub">

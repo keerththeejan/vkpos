@@ -4,7 +4,7 @@
 		<table class="table table-condensed pos-excel-summary">
 			<tr>
 				<td>Items</td>
-				<td class="pos-sum-val"><span class="total_quantity">0</span></td>
+				<td class="pos-sum-val"><span class="pos_total_items">0</span></td>
 			</tr>
 			<tr>
 				<td>Subtotal</td>

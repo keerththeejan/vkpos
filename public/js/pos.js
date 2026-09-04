@@ -1865,6 +1865,9 @@ function pos_total_row() {
         total_quantity = total_quantity + __read_number($(this).find('input.pos_quantity'));
     });
 
+    // Payment Summary "Items" is cart line count, not summed/converted quantity.
+    var total_items = $('table#pos_table tbody tr.product_row').length;
+
     //updating shipping charges
     $('span#shipping_charges_amount').text(
         __currency_trans_from_en(__read_number($('input#shipping_charges_modal')), false)
@@ -1873,6 +1876,8 @@ function pos_total_row() {
     $('span.total_quantity').each(function() {
         $(this).html(__number_f(total_quantity));
     });
+
+    $('span.pos_total_items').text(total_items);
 
     //$('span.unit_price_total').html(unit_price_total);
     $('span.price_total').html(__currency_trans_from_en(price_total, false));
@@ -2093,7 +2098,7 @@ function reset_pos_form(){
 	set_location();
 
 	$('tr.product_row').remove();
-	$('span.total_quantity, span.price_total, span#total_discount, span#order_tax, span#total_payable, span#shipping_charges_amount').text(0);
+	$('span.total_quantity, span.pos_total_items, span.price_total, span#total_discount, span#order_tax, span#total_payable, span#shipping_charges_amount').text(0);
 	$('span.total_payable_span', 'span.total_paying', 'span.balance_due').text(0);
 
 	$('#modal_payment').find('.remove_payment_row').each( function(){

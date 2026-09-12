@@ -312,6 +312,7 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::resource('business-location', BusinessLocationController::class);
 
     //Invoice layouts..
+    Route::post('invoice-layouts/{id}/preview', [InvoiceLayoutController::class, 'preview']);
     Route::resource('invoice-layouts', InvoiceLayoutController::class);
 
     Route::post('get-expense-sub-categories', [ExpenseCategoryController::class, 'getSubCategories']);

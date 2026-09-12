@@ -14,6 +14,22 @@ class InvoiceScheme extends Model
     protected $guarded = ['id'];
 
     /**
+     * POS locations using this scheme for POS invoices.
+     */
+    public function posLocations()
+    {
+        return $this->hasMany(\App\BusinessLocation::class, 'invoice_scheme_id');
+    }
+
+    /**
+     * Locations using this scheme for sale invoices.
+     */
+    public function saleLocations()
+    {
+        return $this->hasMany(\App\BusinessLocation::class, 'sale_invoice_scheme_id');
+    }
+
+    /**
      * Returns list of invoice schemes in array format
      */
     public static function forDropdown($business_id)

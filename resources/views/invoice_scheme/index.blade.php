@@ -1,125 +1,132 @@
 @extends('layouts.app')
 @section('title', __('invoice.invoice_settings'))
 
+@section('css')
+<link rel="stylesheet" href="{{ asset('css/invoice-schemes-premium.css?v=' . $asset_v) }}">
+@endsection
+
 @section('content')
-
-<!-- Content Header (Page header) -->
-<section class="content-header">
-    <h1  class="tw-text-xl md:tw-text-3xl tw-font-bold tw-text-black">@lang( 'invoice.invoice_settings' )
-        <small class="tw-text-sm md:tw-text-base tw-text-gray-700 tw-font-semibold">@lang( 'invoice.manage_your_invoices' )</small>
-    </h1>
-    <!-- <ol class="breadcrumb">
-        <li><a href="#"><i class="fa fa-dashboard"></i> Level</a></li>
-        <li class="active">Here</li>
-    </ol> -->
-</section>
-
-<!-- Main content -->
-<section class="content">
-    <div class="row">
-        <div class="col-md-12">
-            <!-- Custom Tabs -->
-            @component('components.widget')
-            <div class="">
-                <ul class="nav nav-tabs">
-                    <li class="active"><a href="#tab_1" data-toggle="tab" aria-expanded="true">@lang('invoice.invoice_schemes')</a></li>
-                    <li class=""><a href="#tab_2" data-toggle="tab" aria-expanded="false">@lang('invoice.invoice_layouts')</a></li>
-                </ul>
-                <div class="tab-content">
-                    <div class="tab-pane active" id="tab_1">
-                        <div class="row">
-                            <div class="col-md-12">
-                                <h4>@lang( 'invoice.all_your_invoice_schemes' )
-                                        <button class="tw-dw-btn tw-bg-gradient-to-r tw-from-indigo-600 tw-to-blue-500 tw-font-bold tw-text-white tw-border-none tw-rounded-full pull-right tw-mb-2 btn-modal"
-                                            data-href="{{action([\App\Http\Controllers\InvoiceSchemeController::class, 'create'])}}" 
-                                            data-container=".invoice_modal">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                                class="icon icon-tabler icons-tabler-outline icon-tabler-plus">
-                                                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                                                <path d="M12 5l0 14" />
-                                                <path d="M5 12l14 0" />
-                                            </svg> @lang('messages.add')
-                                        </button>
-                                </h4>
-                            </div>
-                        </div>
-                        <br>
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="table-responsive">
-                                    <table class="table table-bordered table-striped" id="invoice_table">
-                                        <thead>
-                                            <tr>
-                                                <th>@lang( 'invoice.name' ) @show_tooltip(__('tooltip.invoice_scheme_name'))</th>
-                                                <th>@lang( 'invoice.prefix' ) @show_tooltip(__('tooltip.invoice_scheme_prefix'))</th>
-                                                <th>@lang( 'invoice.number_type' ) @show_tooltip(__('invoice.number_type_tooltip'))</th>
-                                                <th>@lang( 'invoice.start_number' ) @show_tooltip(__('tooltip.invoice_scheme_start_number'))</th>
-                                                <th>@lang( 'invoice.invoice_count' ) @show_tooltip(__('tooltip.invoice_scheme_count'))</th>
-                                                <th>@lang( 'invoice.total_digits' ) @show_tooltip(__('tooltip.invoice_scheme_total_digits'))</th>
-                                                <th>@lang( 'messages.action' )</th>
-                                            </tr>
-                                        </thead>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- /.tab-pane -->
-                    <div class="tab-pane" id="tab_2">
-                        <div class="row">
-                            <div class="col-md-12">
-                                <h4>@lang( 'invoice.all_your_invoice_layouts' ) <a class="tw-dw-btn tw-dw-btn-primary tw-text-white tw-dw-btn-sm pull-right" href="{{action([\App\Http\Controllers\InvoiceLayoutController::class, 'create'])}}">
-                                        <i class="fa fa-plus"></i> @lang( 'messages.add' )</a></h4>
-                            </div>
-                            <div class="col-md-12">
-                                @foreach( $invoice_layouts as $layout)
-                                <div class="col-md-3">
-                                    <div class="icon-link">
-                                        <a href="{{action([\App\Http\Controllers\InvoiceLayoutController::class, 'edit'], [$layout->id])}}">
-                                            <i class="fa fa-file-alt fa-4x"></i>
-                                            {{ $layout->name }}
-                                        </a>
-                                        @if( $layout->is_default )
-                                        <span class="badge bg-green">@lang("barcode.default")</span>
-                                        @endif
-                                        @if($layout->locations->count())
-                                        <span class="link-des">
-                                            <b>@lang('invoice.used_in_locations'): </b><br>
-                                            @foreach($layout->locations as $location)
-                                            {{ $location->name }}
-                                            @if (!$loop->last)
-                                            ,
-                                            @endif
-                                            &nbsp;
-                                            @endforeach
-                                        </span>
-                                        @endif
-                                    </div>
-                                </div>
-                                @if( $loop->iteration % 4 == 0 )
-                                <div class="clearfix"></div>
-                                @endif
-                                @endforeach
-                            </div>
-                        </div>
-                        <br>
-                    </div>
-                    <!-- /.tab-pane -->
-                </div>
-                <!-- /.tab-content -->
-            </div>
-            @endcomponent
-            <!-- nav-tabs-custom -->
+<section class="content is-shell">
+    <div class="is-header" role="banner">
+        <div class="is-header-left">
+            <h1>@lang('invoice.invoice_schemes')</h1>
+            <p class="is-subtitle">@lang('invoice.manage_your_invoices')</p>
+        </div>
+        <div class="is-header-actions">
+            <button type="button" class="is-btn is-btn-ghost" id="is_refresh_table" title="@lang('lang_v1.refresh')" aria-label="@lang('lang_v1.refresh')">
+                <i class="fa fa-refresh"></i>
+            </button>
+            <button type="button" class="is-btn is-btn-primary btn-modal" id="is_add_btn"
+                data-href="{{ action([\App\Http\Controllers\InvoiceSchemeController::class, 'create']) }}"
+                data-container=".invoice_modal">
+                <i class="fa fa-plus"></i> @lang('messages.add')
+            </button>
         </div>
     </div>
 
-    <div class="modal fade invoice_modal" tabindex="-1" role="dialog" aria-labelledby="gridSystemModalLabel">
-    </div>
-    <div class="modal fade invoice_edit_modal" tabindex="-1" role="dialog" aria-labelledby="gridSystemModalLabel">
+    <div class="is-card">
+        <ul class="nav nav-tabs is-tabs" role="tablist">
+            <li class="active" role="presentation">
+                <a href="#tab_1" data-toggle="tab" aria-expanded="true" role="tab">@lang('invoice.invoice_schemes')</a>
+            </li>
+            <li role="presentation">
+                <a href="#tab_2" data-toggle="tab" aria-expanded="false" role="tab">@lang('invoice.invoice_layouts')</a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane active" id="tab_1" role="tabpanel">
+                <div class="is-toolbar">
+                    <div class="is-search-wrap" role="search">
+                        <i class="fa fa-search" aria-hidden="true"></i>
+                        <input type="search" id="is_quick_search" class="form-control" placeholder="@lang('lang_v1.search')" aria-label="@lang('invoice.invoice_schemes')" autocomplete="off">
+                    </div>
+                    <div class="is-filter-field">
+                        <label for="is_filter_default" class="sr-only">@lang('barcode.default')</label>
+                        <select id="is_filter_default" class="form-control">
+                            <option value="">@lang('messages.all')</option>
+                            <option value="1">@lang('barcode.default')</option>
+                            <option value="0">@lang('invoice.standard')</option>
+                        </select>
+                    </div>
+                    <div class="is-filter-field">
+                        <label for="is_filter_number_type" class="sr-only">@lang('invoice.number_type')</label>
+                        <select id="is_filter_number_type" class="form-control">
+                            <option value="">@lang('invoice.number_type')</option>
+                            @foreach($number_types as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="button" class="is-btn is-btn-ghost" id="is_reset_filters">
+                        <i class="fa fa-undo"></i> @lang('invoice.reset_filters')
+                    </button>
+                </div>
+
+                <div class="table-responsive is-table-wrap">
+                    <table class="table table-bordered table-striped" id="invoice_table">
+                        <thead>
+                            <tr>
+                                <th>@lang('invoice.name') @show_tooltip(__('tooltip.invoice_scheme_name'))</th>
+                                <th>@lang('invoice.prefix') @show_tooltip(__('tooltip.invoice_scheme_prefix'))</th>
+                                <th>@lang('invoice.number_type') @show_tooltip(__('invoice.number_type_tooltip'))</th>
+                                <th>@lang('invoice.start_number') @show_tooltip(__('tooltip.invoice_scheme_start_number'))</th>
+                                <th>@lang('invoice.invoice_count') @show_tooltip(__('tooltip.invoice_scheme_count'))</th>
+                                <th>@lang('invoice.total_digits') @show_tooltip(__('tooltip.invoice_scheme_total_digits'))</th>
+                                <th>@lang('sale.status')</th>
+                                <th>@lang('messages.action')</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane" id="tab_2" role="tabpanel">
+                <div class="is-toolbar is-toolbar-layouts">
+                    <h2 class="is-section-title">@lang('invoice.all_your_invoice_layouts')</h2>
+                    <a class="is-btn is-btn-primary" href="{{ action([\App\Http\Controllers\InvoiceLayoutController::class, 'create']) }}">
+                        <i class="fa fa-plus"></i> @lang('messages.add')
+                    </a>
+                </div>
+
+                @if($invoice_layouts->isEmpty())
+                    <div class="is-empty">
+                        <i class="fa fa-file-text-o" aria-hidden="true"></i>
+                        <p>@lang('invoice.all_your_invoice_layouts')</p>
+                    </div>
+                @else
+                    <div class="is-layout-grid">
+                        @foreach($invoice_layouts as $layout)
+                            <a class="is-layout-card" href="{{ action([\App\Http\Controllers\InvoiceLayoutController::class, 'edit'], [$layout->id]) }}">
+                                <div class="is-layout-icon" aria-hidden="true"><i class="fa fa-file-text-o"></i></div>
+                                <div class="is-layout-body">
+                                    <div class="is-layout-name">
+                                        {{ $layout->name }}
+                                        @if($layout->is_default)
+                                            <span class="is-status is-status-default"><span class="is-dot"></span> @lang('barcode.default')</span>
+                                        @endif
+                                    </div>
+                                    @if($layout->locations->count())
+                                        <div class="is-layout-meta">
+                                            <span>@lang('invoice.used_in_locations'):</span>
+                                            {{ $layout->locations->pluck('name')->implode(', ') }}
+                                        </div>
+                                    @endif
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        </div>
     </div>
 
+    <div class="modal fade invoice_modal contains_select2" tabindex="-1" role="dialog" aria-labelledby="invoiceSchemeAddTitle"></div>
+    <div class="modal fade invoice_edit_modal contains_select2" tabindex="-1" role="dialog" aria-labelledby="invoiceSchemeEditTitle"></div>
+    <div class="modal fade invoice_view_modal" tabindex="-1" role="dialog" aria-labelledby="invoiceSchemeViewTitle"></div>
 </section>
-<!-- /.content -->
+@endsection
 
+@section('javascript')
+<script src="{{ asset('js/invoice-schemes-premium-ui.js?v=' . $asset_v) }}"></script>
 @endsection

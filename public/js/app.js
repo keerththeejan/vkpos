@@ -1088,8 +1088,10 @@ $(document).ready(function() {
 
         if($('select#invoice_number_type').val() == 'sequential'){
             $('.sequential_field').removeClass('hide');
+            $('#start_number').attr('required', true);
         } else{
             $('.sequential_field').addClass('hide');
+            $('#start_number').removeAttr('required');
         }
         
         show_invoice_preview();
@@ -1106,24 +1108,47 @@ $(document).ready(function() {
     $(document).on('change', '#total_digits', function() {
         show_invoice_preview();
     });
-    var invoice_table = $('#invoice_table').DataTable({
+    var invoice_table = $('#invoice_table').length
+        ? $('#invoice_table').DataTable({
         processing: true,
         serverSide: true,
-        bPaginate: false,
+        bPaginate: true,
+        pageLength: typeof __default_datatable_page_entries !== 'undefined' ? parseInt(__default_datatable_page_entries, 10) || 25 : 25,
         fixedHeader:false,
         buttons: [],
-        ajax: '/invoice-schemes',
+        ajax: {
+            url: '/invoice-schemes',
+            data: function(d) {
+                d.filter_number_type = $('#is_filter_number_type').val();
+                d.filter_is_default = $('#is_filter_default').val();
+            }
+        },
         columnDefs: [
             {
-                targets: 4,
+                targets: 7,
                 orderable: false,
                 searchable: false,
             },
         ],
-    });
+        columns: [
+            { data: 'name', name: 'name' },
+            { data: 'prefix', name: 'prefix' },
+            { data: 'number_type', name: 'number_type' },
+            { data: 'start_number', name: 'start_number' },
+            { data: 'invoice_count', name: 'invoice_count' },
+            { data: 'total_digits', name: 'total_digits' },
+            { data: 'is_default', name: 'is_default' },
+            { data: 'action', name: 'action' },
+        ],
+    }) : null;
     $(document).on('submit', 'form#invoice_scheme_add_form', function(e) {
         e.preventDefault();
         var form = $(this);
+        var $btn = form.find('button[type="submit"]');
+        if (form.find('input[name="scheme_type"]:checked').length === 0) {
+            toastr.error(LANG.required || 'This field is required');
+            return false;
+        }
         var data = form.serialize();
 
         $.ajax({
@@ -1132,17 +1157,25 @@ $(document).ready(function() {
             dataType: 'json',
             data: data,
             beforeSend: function(xhr) {
-                __disable_submit_button(form.find('button[type="submit"]'));
+                $btn.prop('disabled', true);
             },
             success: function(result) {
                 if (result.success == true) {
                     $('div.invoice_modal').modal('hide');
                     $('div.invoice_edit_modal').modal('hide');
                     toastr.success(result.msg);
-                    invoice_table.ajax.reload();
+                    if (invoice_table) {
+                        invoice_table.ajax.reload(null, false);
+                    }
                 } else {
                     toastr.error(result.msg);
                 }
+            },
+            error: function() {
+                toastr.error(LANG.something_went_wrong);
+            },
+            complete: function() {
+                $btn.prop('disabled', false);
             },
         });
     });
@@ -1158,17 +1191,32 @@ $(document).ready(function() {
             success: function(result) {
                 if (result.success === true) {
                     toastr.success(result.msg);
-                    invoice_table.ajax.reload();
+                    if (invoice_table) {
+                        invoice_table.ajax.reload(null, false);
+                    }
                 } else {
                     toastr.error(result.msg);
                 }
             },
+            error: function() {
+                toastr.error(LANG.something_went_wrong);
+            },
         });
     });
-    $('.invoice_edit_modal').on('shown.bs.modal', function() {
+    $('.invoice_modal, .invoice_edit_modal').on('shown.bs.modal', function() {
         show_invoice_preview();
+        if ($('select#invoice_number_type').val() == 'sequential') {
+            $('.sequential_field').removeClass('hide');
+            $('#start_number').attr('required', true);
+        } else if ($('select#invoice_number_type').length) {
+            $('.sequential_field').addClass('hide');
+            $('#start_number').removeAttr('required');
+        }
     });
     $(document).on('click', 'button.delete_invoice_button', function() {
+        if ($(this).is(':disabled')) {
+            return false;
+        }
         swal({
             title: LANG.sure,
             text: LANG.delete_invoice_confirm,
@@ -1188,10 +1236,15 @@ $(document).ready(function() {
                     success: function(result) {
                         if (result.success === true) {
                             toastr.success(result.msg);
-                            invoice_table.ajax.reload();
+                            if (invoice_table) {
+                                invoice_table.ajax.reload(null, false);
+                            }
                         } else {
                             toastr.error(result.msg);
                         }
+                    },
+                    error: function() {
+                        toastr.error(LANG.something_went_wrong);
                     },
                 });
             }
@@ -2160,16 +2213,19 @@ function printer_connection_type_field(ctype) {
 }
 
 function show_invoice_preview() {
-    if ($('input[type=radio][name=scheme_type]:checked').val() == 'blank') {
-        var scheme_type = '';
-    } else if ($('input[type=radio][name=scheme_type]:checked').val() == 'year') {
+    var schemeVal = $('input[type=radio][name=scheme_type]:checked').val();
+    if (!schemeVal) {
+        return;
+    }
+    var scheme_type = '';
+    if (schemeVal == 'year') {
         var d = new Date();
         var this_year = d.getFullYear();
-        var scheme_type = this_year + APP.INVOICE_SCHEME_SEPARATOR;
+        scheme_type = this_year + APP.INVOICE_SCHEME_SEPARATOR;
     }
-    var prefix = $('#prefix').val()+scheme_type;
-    var start_number = $('#start_number').val();
-    var total_digits = $('#total_digits').val();
+    var prefix = ($('#prefix').val() || '') + scheme_type;
+    var start_number = $('#start_number').val() || '0';
+    var total_digits = $('#total_digits').val() || 4;
     var preview = prefix + pad_zero(start_number, total_digits);
     $('#preview_format').text('#' + preview);
 }

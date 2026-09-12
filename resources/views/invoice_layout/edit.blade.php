@@ -1,20 +1,32 @@
 @extends('layouts.app')
 @section('title',  __('invoice.edit_invoice_layout'))
 
+@section('css')
+<link rel="stylesheet" href="{{ asset('css/invoice-layout-editor.css?v=' . $asset_v) }}">
+@endsection
+
 @section('content')
-<style type="text/css">
+<section class="content ile-shell"
+    data-preview-url="{{ $preview_url }}"
+    data-saving-text="@lang('invoice.layout_saving')"
+    data-unsaved-text="@lang('invoice.layout_unsaved_changes')"
+    data-vendor-css="{{ asset('css/vendor.css?v=' . $asset_v) }}">
+    <div class="ile-header" role="banner">
+        <div class="ile-header-left">
+            <h1>@lang('invoice.edit_invoice_layout')</h1>
+            <p class="ile-subtitle">{{ $invoice_layout->name }} · ID {{ $invoice_layout->id }}</p>
+        </div>
+        <div class="ile-header-actions">
+            <a class="ile-btn ile-btn-ghost" href="{{ url('invoice-schemes') }}">@lang('invoice.layout_back_to_list')</a>
+            <button type="button" class="ile-btn ile-btn-ghost" id="ile_preview_btn">@lang('invoice.layout_preview')</button>
+            <button type="button" class="ile-btn ile-btn-ghost" id="ile_print_preview_btn">@lang('messages.print')</button>
+            <button type="submit" class="ile-btn ile-btn-primary" form="add_invoice_layout_form" id="ile_save_btn">@lang('messages.update')</button>
+        </div>
+    </div>
 
-
-
-</style>
-<!-- Content Header (Page header) -->
-<section class="content-header">
-    <h1 class="tw-text-xl md:tw-text-3xl tw-font-bold tw-text-black">@lang('invoice.edit_invoice_layout')</h1>
-</section>
-
-<!-- Main content -->
-<section class="content">
-{!! Form::open(['url' => action([\App\Http\Controllers\InvoiceLayoutController::class, 'update'], [$invoice_layout->id]), 'method' => 'put', 
+    <div class="ile-grid">
+        <div class="ile-settings">
+{!! Form::open(['url' => action([\App\Http\Controllers\InvoiceLayoutController::class, 'update'], [$invoice_layout->id]), 'method' => 'put',
   'id' => 'add_invoice_layout_form', 'files' => true]) !!}
 
   @php
@@ -22,8 +34,21 @@
     $contact_custom_fields = !empty($invoice_layout->contact_custom_fields) ? $invoice_layout->contact_custom_fields : [];
     $location_custom_fields = !empty($invoice_layout->location_custom_fields) ? $invoice_layout->location_custom_fields : [];
     $custom_labels = json_decode(session('business.custom_labels'), true);
+    $paper_map = [
+        'classic' => 'A4 / normal',
+        'elegant' => 'A4 / normal',
+        'detailed' => 'A4 / normal',
+        'columnize-taxes' => 'A4 / normal',
+        'slim' => '80mm thermal',
+        'slim2' => '58mm thermal',
+    ];
   @endphp
-  <div class="box box-solid">
+  <div class="box box-solid ile-section" data-ile-section="design">
+    <div class="box-header with-border">
+        <h3 class="box-title">@lang('invoice.layout_paper')</h3>
+        <span class="ile-paper-badge" id="ile_paper_badge">{{ $paper_map[$invoice_layout->design] ?? $invoice_layout->design }}</span>
+    </div>
+
     <div class="box-body">
       <div class="row">
 
@@ -38,10 +63,18 @@
         <div class="col-sm-6">
           <div class="form-group">
             {!! Form::label('design', __('lang_v1.design') . ':*') !!}
-              {!! Form::select('design', $designs, $invoice_layout->design, ['class' => 'form-control']); !!}
+              {!! Form::select('design', $designs, $invoice_layout->design, ['class' => 'form-control', 'id' => 'design']); !!}
               <span class="help-block">
                 @lang('lang_v1.used_for_browser_based_printing')
               </span>
+              <div class="ile-design-chips" role="list">
+                @foreach($paper_map as $key => $paper)
+                    <button type="button" class="ile-chip {{ $invoice_layout->design == $key ? 'active' : '' }}" data-design="{{ $key }}" role="listitem">
+                        <strong>{{ explode(' (', $designs[$key])[0] }}</strong>
+                        <span>{{ $paper }}</span>
+                    </button>
+                @endforeach
+              </div>
           </div>
 
           <div class="form-group @if($invoice_layout->design != 'columnize-taxes') hide @endif" id="columnize-taxes">
@@ -91,6 +124,7 @@
                 </div>
             </div>
       </div>
+      <h4 class="ile-subhead">@lang('invoice.layout_header')</h4>
       <div class="row hide-for-letterhead">
         <!-- Logo -->
         <div class="col-sm-6">
@@ -155,7 +189,10 @@
       </div>
     </div>
   </div>
-  <div class="box box-solid">
+  <div class="box box-solid ile-section" data-ile-section="details">
+    <div class="box-header with-border">
+        <h3 class="box-title">@lang('invoice.layout_invoice_details')</h3>
+    </div>
     <div class="box-body">
       <div class="row">
         <div class="col-sm-3">
@@ -565,7 +602,10 @@
       </div>
     </div>
   </div>
-  <div class="box box-solid">
+  <div class="box box-solid ile-section" data-ile-section="products">
+    <div class="box-header with-border">
+        <h3 class="box-title">@lang('invoice.layout_products')</h3>
+    </div>
     <div class="box-body">
       <div class="row">
         <div class="col-sm-3">
@@ -773,7 +813,10 @@
 
     </div>
   </div>
-  <div class="box box-solid">
+  <div class="box box-solid ile-section" data-ile-section="totals">
+    <div class="box-header with-border">
+        <h3 class="box-title">@lang('invoice.layout_totals')</h3>
+    </div>
     <div class="box-body">
       <div class="row">
         <div class="col-sm-3">
@@ -911,7 +954,10 @@
       </div>
     </div>
   </div>
-  <div class="box box-solid">
+  <div class="box box-solid ile-section" data-ile-section="footer">
+    <div class="box-header with-border">
+        <h3 class="box-title">@lang('invoice.layout_footer_section')</h3>
+    </div>
     <div class="box-body">
       <div class="row">
         <div class="col-sm-12">
@@ -951,8 +997,6 @@
       </div>
     </div>
   </div>
-</div>
-
 
 @component('components.widget', ['class' => 'box-solid', 'title' => __('lang_v1.qr_code')])
   <div class="row">
@@ -1135,16 +1179,28 @@
   </div>
 </div>
 
-<div class="row">
-  <div class="col-sm-12 text-center">
-    <button type="submit" class="tw-dw-btn tw-dw-btn-primary tw-text-white tw-dw-btn-lg">@lang('messages.update')</button>
+<div class="row ile-form-actions">
+  <div class="col-sm-12">
+    <button type="submit" class="ile-btn ile-btn-primary" id="ile_save_btn_bottom">@lang('messages.update')</button>
+    <a class="ile-btn ile-btn-ghost" href="{{ url('invoice-schemes') }}">@lang('messages.cancel')</a>
   </div>
 </div>
 
   {!! Form::close() !!}
+        </div>
+        <aside class="ile-preview-pane" aria-label="@lang('invoice.layout_preview')">
+            <div class="ile-preview-head">
+                <strong>@lang('invoice.layout_preview')</strong>
+                <span id="ile_preview_meta"></span>
+            </div>
+            <div class="ile-preview-frame-wrap" id="ile_preview_wrap">
+                <iframe id="ile_preview_frame" title="@lang('invoice.layout_preview')" sandbox="allow-same-origin allow-popups allow-modals"></iframe>
+                <div class="ile-preview-empty" id="ile_preview_empty">@lang('invoice.layout_preview')</div>
+            </div>
+        </aside>
+    </div>
 </section>
-<!-- /.content -->
-@stop
+@endsection
 @section('javascript')
 <script type="text/javascript">
   __page_leave_confirmation('#add_invoice_layout_form');
@@ -1197,4 +1253,5 @@
       });
   });
 </script>
+<script src="{{ asset('js/invoice-layout-editor.js?v=' . $asset_v) }}"></script>
 @endsection

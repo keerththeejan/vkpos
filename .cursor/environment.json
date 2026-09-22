@@ -1,0 +1,18 @@
+{
+  "name": "VK POS (Laravel 9 + MariaDB)",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "web",
+      "command": "php artisan serve --host=0.0.0.0 --port=8000",
+      "description": "Laravel development server for VK POS, reachable at http://localhost:8000"
+    }
+  ],
+  "ports": [
+    {
+      "name": "web server",
+      "port": 8000
+    }
+  ]
+}

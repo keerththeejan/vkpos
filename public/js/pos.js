@@ -68,7 +68,7 @@ $(document).ready(function() {
     //get customer
     $('select#customer_id').select2({
         ajax: {
-            url: '/contacts/customers',
+            url: (typeof vkposUrl === 'function' ? vkposUrl('/contacts/customers') : '/contacts/customers'),
             dataType: 'json',
             delay: 250,
             data: function(params) {

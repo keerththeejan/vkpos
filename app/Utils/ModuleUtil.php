@@ -14,6 +14,13 @@ use Module;
 class ModuleUtil extends Util
 {
     /**
+     * Per-request installed-module lookup.
+     *
+     * @var array<string, bool>
+     */
+    protected static $installedModuleCache = [];
+
+    /**
      * This function check if a module is installed or not.
      *
      * @param  string  $module_name (Exact module name, with first letter capital)
@@ -21,17 +28,23 @@ class ModuleUtil extends Util
      */
     public function isModuleInstalled($module_name)
     {
+        $cacheKey = strtolower($module_name);
+        if (array_key_exists($cacheKey, self::$installedModuleCache)) {
+            return self::$installedModuleCache[$cacheKey];
+        }
+
         $is_available = Module::has($module_name);
 
         if ($is_available) {
             //Check if installed by checking the system table {module_name}_version
             $module_version = System::getProperty(strtolower($module_name).'_version');
-            if (empty($module_version)) {
-                return false;
-            } else {
-                return true;
-            }
+            $result = ! empty($module_version);
+            self::$installedModuleCache[$cacheKey] = $result;
+
+            return $result;
         }
+
+        self::$installedModuleCache[$cacheKey] = false;
 
         return false;
     }

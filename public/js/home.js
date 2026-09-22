@@ -39,7 +39,7 @@ $(document).ready(function() {
         fixedHeader: false,
         dom: 'Btirp',
         ajax: {
-            "url": '/home/product-stock-alert',
+            "url": (typeof vkposUrl === 'function' ? vkposUrl('/home/product-stock-alert') : '/home/product-stock-alert'),
             "data": function ( d ) {
                 if ($('#stock_alert_location').length > 0) {
                     d.location_id = $('#stock_alert_location').val();
@@ -66,7 +66,7 @@ $(document).ready(function() {
         fixedHeader: false,
         dom: 'Btirp',
         ajax: {
-            "url": '/home/purchase-payment-dues',
+            "url": (typeof vkposUrl === 'function' ? vkposUrl('/home/purchase-payment-dues') : '/home/purchase-payment-dues'),
             "data": function ( d ) {
                 if ($('#purchase_payment_dues_location').length > 0) {
                     d.location_id = $('#purchase_payment_dues_location').val();
@@ -94,7 +94,7 @@ $(document).ready(function() {
         fixedHeader: false,
         dom: 'Btirp',
         ajax: {
-            "url": '/home/sales-payment-dues',
+            "url": (typeof vkposUrl === 'function' ? vkposUrl('/home/sales-payment-dues') : '/home/sales-payment-dues'),
             "data": function ( d ) {
                 if ($('#sales_payment_dues_location').length > 0) {
                     d.location_id = $('#sales_payment_dues_location').val();
@@ -121,7 +121,7 @@ $(document).ready(function() {
         fixedHeader: false,
         dom: 'Btirp',
         ajax: {
-            url: '/reports/stock-expiry',
+            url: (typeof vkposUrl === 'function' ? vkposUrl('/reports/stock-expiry') : '/reports/stock-expiry'),
             data: function(d) {
                 d.exp_date_filter = $('#stock_expiry_alert_days').val();
             },
@@ -146,7 +146,7 @@ $(document).ready(function() {
             fixedHeader:false,
             aaSorting: [[0, 'desc']],
             "ajax": {
-                "url": '/sells/draft-dt?is_quotation=1',
+                "url": (typeof vkposUrl === 'function' ? vkposUrl('/sells/draft-dt?is_quotation=1') : '/sells/draft-dt?is_quotation=1'),
                 "data": function ( d ) {
                     if ($('#dashboard_location').length > 0) {
                         d.location_id = $('#dashboard_location').val();
@@ -187,7 +187,7 @@ function update_statistics(start, end) {
     $('.net').html(loader);
     $.ajax({
         method: 'get',
-        url: '/home/get-totals',
+        url: (typeof vkposUrl === 'function' ? vkposUrl('/home/get-totals') : '/home/get-totals'),
         dataType: 'json',
         data: data,
         success: function(data) {

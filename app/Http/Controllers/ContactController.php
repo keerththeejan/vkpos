@@ -960,7 +960,7 @@ class ContactController extends Controller
             if (request()->session()->get('business.enable_rp') == 1) {
                 $contacts->addSelect('total_rp');
             }
-            $contacts = $contacts->get();
+            $contacts = $contacts->limit(50)->get();
 
             return json_encode($contacts);
         }

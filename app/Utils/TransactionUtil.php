@@ -2426,15 +2426,14 @@ class TransactionUtil extends Util
      */
     public function getPurchaseTotals($business_id, $start_date = null, $end_date = null, $location_id = null, $user_id = null, $permitted_locations = null)
     {
-        $query = Transaction::where('business_id', $business_id)
-                        ->where('type', 'purchase')
+        $query = Transaction::where('transactions.business_id', $business_id)
+                        ->where('transactions.type', 'purchase')
                         ->select(
-                            DB::raw('SUM(final_total) as final_total_sum'),
-                            //DB::raw("SUM(final_total - tax_amount) as total_exc_tax"),
+                            DB::raw('SUM(transactions.final_total) as final_total_sum'),
                             DB::raw('SUM((SELECT COALESCE(SUM(tp.amount), 0) FROM transaction_payments as tp WHERE tp.transaction_id=transactions.id)) as total_paid'),
-                            DB::raw('SUM(total_before_tax) as total_before_tax_sum'),
-                            DB::raw('SUM(shipping_charges) as total_shipping_charges'),
-                            DB::raw('SUM(additional_expense_value_1 + additional_expense_value_2 + additional_expense_value_3 + additional_expense_value_4) as total_expense')
+                            DB::raw('SUM(transactions.total_before_tax) as total_before_tax_sum'),
+                            DB::raw('SUM(transactions.shipping_charges) as total_shipping_charges'),
+                            DB::raw('SUM(transactions.additional_expense_value_1 + transactions.additional_expense_value_2 + transactions.additional_expense_value_3 + transactions.additional_expense_value_4) as total_expense')
                         );
 
         //Check for permitted locations of a user
@@ -2444,14 +2443,7 @@ class TransactionUtil extends Util
             }
         }
 
-        if (! empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transaction_date', '>=', $start_date)
-                ->whereDate('transaction_date', '<=', $end_date);
-        }
-
-        if (empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transaction_date', '<=', $end_date);
-        }
+        $this->whereDateRange($query, 'transactions.transaction_date', $start_date, $end_date);
 
         //Filter by the location
         if (! empty($location_id)) {
@@ -2490,14 +2482,7 @@ class TransactionUtil extends Util
             $query->whereIn('t.location_id', $permitted_locations);
         }
 
-        if (! empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('t.transaction_date', '>=', $start_date)
-                ->whereDate('t.transaction_date', '<=', $end_date);
-        }
-
-        if (empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('t.transaction_date', '<=', $end_date);
-        }
+        $this->whereDateRange($query, 't.transaction_date', $start_date, $end_date);
 
         //Filter by the location
         if (! empty($location_id)) {
@@ -2526,14 +2511,7 @@ class TransactionUtil extends Util
             $query->whereIn('t.location_id', $permitted_locations);
         }
 
-        if (! empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('t.transaction_date', '>=', $start_date)
-                ->whereDate('t.transaction_date', '<=', $end_date);
-        }
-
-        if (empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('t.transaction_date', '<=', $end_date);
-        }
+        $this->whereDateRange($query, 't.transaction_date', $start_date, $end_date);
 
         //Filter by the location
         if (! empty($location_id)) {
@@ -2562,12 +2540,12 @@ class TransactionUtil extends Util
                     ->where('transactions.type', 'sell')
                     ->where('transactions.status', 'final')
                     ->select(
-                        DB::raw('SUM(final_total) as total_sell'),
-                        DB::raw('SUM(final_total - tax_amount) as total_exc_tax'),
-                        DB::raw('SUM(final_total - (SELECT COALESCE(SUM(IF(tp.is_return = 1, -1*tp.amount, tp.amount)), 0) FROM transaction_payments as tp WHERE tp.transaction_id = transactions.id) )  as total_due'),
-                        DB::raw('SUM(total_before_tax) as total_before_tax'),
-                        DB::raw('SUM(shipping_charges) as total_shipping_charges'),
-                        DB::raw('SUM(additional_expense_value_1 + additional_expense_value_2 + additional_expense_value_3 + additional_expense_value_4) as total_expense')
+                        DB::raw('SUM(transactions.final_total) as total_sell'),
+                        DB::raw('SUM(transactions.final_total - transactions.tax_amount) as total_exc_tax'),
+                        DB::raw('SUM(transactions.final_total - (SELECT COALESCE(SUM(IF(tp.is_return = 1, -1*tp.amount, tp.amount)), 0) FROM transaction_payments as tp WHERE tp.transaction_id = transactions.id) )  as total_due'),
+                        DB::raw('SUM(transactions.total_before_tax) as total_before_tax'),
+                        DB::raw('SUM(transactions.shipping_charges) as total_shipping_charges'),
+                        DB::raw('SUM(transactions.additional_expense_value_1 + transactions.additional_expense_value_2 + transactions.additional_expense_value_3 + transactions.additional_expense_value_4) as total_expense')
                     );
 
         //Check for permitted locations of a user
@@ -2577,14 +2555,7 @@ class TransactionUtil extends Util
             }
         }
 
-        if (! empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transactions.transaction_date', '>=', $start_date)
-                ->whereDate('transactions.transaction_date', '<=', $end_date);
-        }
-
-        if (empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transactions.transaction_date', '<=', $end_date);
-        }
+        $this->whereDateRange($query, 'transactions.transaction_date', $start_date, $end_date);
 
         //Filter by the location
         if (! empty($location_id)) {
@@ -2617,14 +2588,7 @@ class TransactionUtil extends Util
                         DB::raw('SUM(IF(sub_type="purchase_discount", final_total, 0)) as total_purchase_discount')
                     );
 
-        if (! empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transactions.transaction_date', '>=', $start_date)
-                ->whereDate('transactions.transaction_date', '<=', $end_date);
-        }
-
-        if (empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transactions.transaction_date', '<=', $end_date);
-        }
+        $this->whereDateRange($query, 'transactions.transaction_date', $start_date, $end_date);
 
         $sell_details = $query->first();
 
@@ -4468,14 +4432,7 @@ class TransactionUtil extends Util
             }
         }
 
-        if (! empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transactions.transaction_date', '>=', $start_date)
-                ->whereDate('transactions.transaction_date', '<=', $end_date);
-        }
-
-        if (empty($start_date) && ! empty($end_date)) {
-            $query->whereDate('transactions.transaction_date', '<=', $end_date);
-        }
+        $this->whereDateRange($query, 'transactions.transaction_date', $start_date, $end_date);
 
         //Filter by the location
         if (! empty($location_id)) {

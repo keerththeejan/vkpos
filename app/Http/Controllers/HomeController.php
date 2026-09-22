@@ -80,45 +80,39 @@ class HomeController extends Controller
         $fy = $this->businessUtil->getCurrentFinancialYear($business_id);
 
         $currency = Currency::where('id', request()->session()->get('business.currency_id'))->first();
-        //ensure start date starts from at least 30 days before to get sells last 30 days
         $least_30_days = \Carbon::parse($fy['start'])->subDays(30)->format('Y-m-d');
 
-        //get all sells
         $sells_this_fy = $this->transactionUtil->getSellsCurrentFy($business_id, $least_30_days, $fy['end']);
 
         $all_locations = BusinessLocation::forDropdown($business_id)->toArray();
 
-        //Chart for sells last 30 days
+        $sells_by_date = [];
+        $sells_by_date_location = [];
+        $sells_by_month = [];
+        $sells_by_month_location = [];
+        foreach ($sells_this_fy as $row) {
+            $val = (float) $row->total_sells;
+            $sells_by_date[$row->date] = ($sells_by_date[$row->date] ?? 0) + $val;
+            $sells_by_date_location[$row->date][$row->location_id] = ($sells_by_date_location[$row->date][$row->location_id] ?? 0) + $val;
+            $sells_by_month[$row->yearmonth] = ($sells_by_month[$row->yearmonth] ?? 0) + $val;
+            $sells_by_month_location[$row->yearmonth][$row->location_id] = ($sells_by_month_location[$row->yearmonth][$row->location_id] ?? 0) + $val;
+        }
+
         $labels = [];
         $all_sell_values = [];
         $dates = [];
         for ($i = 29; $i >= 0; $i--) {
             $date = \Carbon::now()->subDays($i)->format('Y-m-d');
             $dates[] = $date;
-
             $labels[] = date('j M Y', strtotime($date));
-
-            $total_sell_on_date = $sells_this_fy->where('date', $date)->sum('total_sells');
-
-            if (! empty($total_sell_on_date)) {
-                $all_sell_values[] = (float) $total_sell_on_date;
-            } else {
-                $all_sell_values[] = 0;
-            }
+            $all_sell_values[] = (float) ($sells_by_date[$date] ?? 0);
         }
 
-        //Group sells by location
         $location_sells = [];
         foreach ($all_locations as $loc_id => $loc_name) {
             $values = [];
             foreach ($dates as $date) {
-                $total_sell_on_date_location = $sells_this_fy->where('date', $date)->where('location_id', $loc_id)->sum('total_sells');
-
-                if (! empty($total_sell_on_date_location)) {
-                    $values[] = (float) $total_sell_on_date_location;
-                } else {
-                    $values[] = 0;
-                }
+                $values[] = (float) ($sells_by_date_location[$date][$loc_id] ?? 0);
             }
             $location_sells[$loc_id]['loc_label'] = $loc_name;
             $location_sells[$loc_id]['values'] = $values;
@@ -155,13 +149,7 @@ class HomeController extends Controller
                             ->format('M-Y');
             $date = strtotime('+1 month', $date);
 
-            $total_sell_in_month_year = $sells_this_fy->where('yearmonth', $month_year)->sum('total_sells');
-
-            if (! empty($total_sell_in_month_year)) {
-                $values[] = (float) $total_sell_in_month_year;
-            } else {
-                $values[] = 0;
-            }
+            $values[] = (float) ($sells_by_month[$month_year] ?? 0);
         } while ($month_year != $last);
 
         $fy_sells_by_location_data = [];
@@ -169,13 +157,7 @@ class HomeController extends Controller
         foreach ($all_locations as $loc_id => $loc_name) {
             $values_data = [];
             foreach ($fy_months as $month) {
-                $total_sell_in_month_year_location = $sells_this_fy->where('yearmonth', $month)->where('location_id', $loc_id)->sum('total_sells');
-
-                if (! empty($total_sell_in_month_year_location)) {
-                    $values_data[] = (float) $total_sell_in_month_year_location;
-                } else {
-                    $values_data[] = 0;
-                }
+                $values_data[] = (float) ($sells_by_month_location[$month][$loc_id] ?? 0);
             }
             $fy_sells_by_location_data[$loc_id]['loc_label'] = $loc_name;
             $fy_sells_by_location_data[$loc_id]['values'] = $values_data;
@@ -482,24 +464,11 @@ class HomeController extends Controller
      */
     public function getTotalUnreadNotifications()
     {
-        $unread_notifications = auth()->user()->unreadNotifications;
-        $total_unread = $unread_notifications->count();
-
-        $notification_html = '';
-        $modal_notifications = [];
-        foreach ($unread_notifications as $unread_notification) {
-            if (isset($data['show_popup'])) {
-                $modal_notifications[] = $unread_notification;
-                $unread_notification->markAsRead();
-            }
-        }
-        if (! empty($modal_notifications)) {
-            $notification_html = view('home.notification_modal')->with(['notifications' => $modal_notifications])->render();
-        }
+        $total_unread = auth()->user()->unreadNotifications()->count();
 
         return [
             'total_unread' => $total_unread,
-            'notification_html' => $notification_html,
+            'notification_html' => '',
         ];
     }
 

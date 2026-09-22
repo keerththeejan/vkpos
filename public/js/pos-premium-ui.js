@@ -94,7 +94,8 @@
     var sub = ($('.price_total').first().text() || '0').toString().trim();
     var disc = ($('#total_discount').first().text() || '0').toString().trim();
     $('.pos-pay-subtotal-display').text(sub);
-    $('.pos-pay-discount-display').text(disc ? '- ' + disc.replace(/^\-\s*/, '') : '0');
+    var discClean = disc.replace(/^\-\s*/, '');
+    $('.pos-pay-discount-display').text('- ' + (discClean || '0'));
 
     var paid = parseMoney($('span.total_paying').first().text()) || parseMoney($('#total_paying_input').val());
     var total = parseMoney($('span.total_payable_span').first().text()) || parseMoney($('#final_total_input').val());

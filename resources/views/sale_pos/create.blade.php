@@ -129,69 +129,9 @@
 		        display: block !important;
 		        color: #000000 !important;
 		        background: #ffffff !important;
-		        font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
-		        font-weight: 700 !important;
-		        opacity: 1 !important;
-		        -webkit-print-color-adjust: exact;
-		        print-color-adjust: exact;
-		    }
-		    #receipt_section *,
-		    .print_section * {
-		        color: #000000 !important;
-		        font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
-		        font-weight: 700 !important;
-		        opacity: 1 !important;
-		        text-shadow: none !important;
-		        -webkit-print-color-adjust: exact;
-		        print-color-adjust: exact;
-		        -webkit-font-smoothing: none;
-		        word-break: normal !important;
-		    }
-		    #receipt_section .shop-name,
-		    #receipt_section .shop-name *,
-		    #receipt_section .shop-meta,
-		    #receipt_section .shop-meta *,
-		    .print_section .shop-name,
-		    .print_section .shop-name *,
-		    .print_section .shop-meta,
-		    .print_section .shop-meta * {
-		        font-family: "Noto Sans Tamil", Latha, "Nirmala UI", sans-serif !important;
-		        color: #000000 !important;
-		        font-weight: 700 !important;
-		    }
-		    #receipt_section .shop-name,
-		    #receipt_section .shop-name *,
-		    .print_section .shop-name,
-		    .print_section .shop-name * {
-		        font-weight: 800 !important;
-		    }
-		    #receipt_section .row.em .lbl,
-		    #receipt_section .row.em .val,
-		    #receipt_section .total,
-		    #receipt_section .total *,
-		    #receipt_section .change,
-		    #receipt_section .change *,
-		    #receipt_section .balance-due,
-		    #receipt_section .balance-due *,
-		    #receipt_section .paid-amount,
-		    #receipt_section .paid-amount *,
-		    .print_section .row.em .lbl,
-		    .print_section .row.em .val,
-		    .print_section .total,
-		    .print_section .total *,
-		    .print_section .change,
-		    .print_section .change *,
-		    .print_section .balance-due,
-		    .print_section .balance-due *,
-		    .print_section .paid-amount,
-		    .print_section .paid-amount * {
-		        font-weight: 800 !important;
-		        color: #000000 !important;
-		    }
-		    #receipt_section .sep,
-		    .print_section .sep {
-		        border-bottom-color: #000000 !important;
-		        opacity: 1 !important;
+		        height: auto !important;
+		        min-height: 0 !important;
+		        overflow: visible !important;
 		    }
 		    .color-555,
 		    .color-555 *,
@@ -202,12 +142,8 @@
 		    }
 		}
 		@page {
-		    size: 80mm auto;
-		    height: auto !important;
-		    margin-top: 0mm;
-		    margin-bottom: 0mm;
-		    margin-left: 2mm;
-		    margin-right: 2mm;
+		    size: auto;
+		    margin: 0;
 		}
 	</style>
 	<!-- include module css -->

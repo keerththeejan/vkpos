@@ -10,6 +10,9 @@
 
 <!-- app css -->
 <link rel="stylesheet" href="{{ asset('css/app.css?v='.$asset_v) }}">
+<style type="text/css">
+	@include('sale_pos.receipts.partial.premium_thermal_css')
+</style>
 
 @if(isset($pos_layout) && $pos_layout)
 	<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,6 +21,7 @@
 	<link rel="stylesheet" href="{{ asset('css/pos-premium.css?v='.$asset_v) }}">
 	<link rel="stylesheet" href="{{ asset('css/pos-terminal.css?v='.$asset_v) }}">
 	<style type="text/css">
+		@include('sale_pos.partials.payment_summary_css')
 		.content{
 			padding-bottom: 0px !important;
 		}

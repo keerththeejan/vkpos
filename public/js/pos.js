@@ -786,6 +786,7 @@ $(document).ready(function() {
     });
 
     pos_form_validator = pos_form_obj.validate({
+        ignore: ':hidden, .modal:not(.in):not(.show) input, .modal:not(.in):not(.show) select, .modal:not(.in):not(.show) textarea',
         submitHandler: function(form) {
             // var total_payble = __read_number($('input#final_total_input'));
             // var total_paying = __read_number($('input#total_paying_input'));
@@ -919,18 +920,33 @@ $(document).ready(function() {
     });
 
     //Update discount
-    $('button#posEditDiscountModalUpdate').click(function() {
+    $('button#posEditDiscountModalUpdate').click(function(e) {
+        e.preventDefault();
+        e.stopPropagation();
 
-        //if discount amount is not valid return false
-        if (!$("#discount_amount_modal").valid()) {
-            return false;
+        validate_discount_field();
+
+        var $discount_amount_modal = $('#discount_amount_modal');
+        var $discount_type_modal = $('#discount_type_modal');
+        var entered_discount = __read_number($discount_amount_modal);
+        var max_discount = parseFloat($discount_amount_modal.data('max-discount'));
+        if ($discount_amount_modal.val() != '' && !isNaN(max_discount)) {
+            var max_allowed = max_discount;
+            if (($discount_type_modal.val() || 'percentage') == 'fixed') {
+                max_allowed = __calculate_amount('percentage', max_discount, get_subtotal());
+            }
+            if (entered_discount > max_allowed) {
+                toastr.error($discount_amount_modal.data('max-discount-error_msg'));
+                return false;
+            }
         }
+
         //Close modal
         $('div#posEditDiscountModal').modal('hide');
 
         //Update values
-        $('input#discount_type').val($('select#discount_type_modal').val());
-        __write_number($('input#discount_amount'), __read_number($('input#discount_amount_modal')));
+        $('input#discount_type').val($discount_type_modal.val() || 'percentage');
+        __write_number($('input#discount_amount'), entered_discount);
 
         if ($('#reward_point_enabled').length) {
             var reward_validation = isValidatRewardPoint();

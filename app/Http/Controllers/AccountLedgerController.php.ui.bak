@@ -1,0 +1,196 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\BusinessLocation;
+use App\Exports\AccountLedgerExport;
+use App\Utils\AccountLedgerUtil;
+use Carbon\Carbon;
+use Excel;
+use Illuminate\Http\Request;
+
+class AccountLedgerController extends Controller
+{
+    protected $ledgerUtil;
+
+    public function __construct(AccountLedgerUtil $ledgerUtil)
+    {
+        $this->ledgerUtil = $ledgerUtil;
+    }
+
+    public function index()
+    {
+        $this->authorizeLedger();
+        $businessId = request()->session()->get('user.business_id');
+        $business_locations = BusinessLocation::forDropdown($businessId, true);
+        $start = Carbon::now()->startOfMonth()->toDateString();
+        $end = Carbon::now()->endOfMonth()->toDateString();
+
+        return view('account.ledger', [
+            'business_locations' => $business_locations,
+            'default_start' => $this->ledgerUtil->format_date($start),
+            'default_end' => $this->ledgerUtil->format_date($end),
+            'voucher_types' => $this->voucherTypes(),
+            'has_payment_accounts' => \DB::table('accounts')->where('business_id', $businessId)->whereNull('deleted_at')->exists(),
+        ]);
+    }
+
+    public function accounts(Request $request)
+    {
+        $this->authorizeLedger();
+        $businessId = $request->session()->get('user.business_id');
+        $locationId = $request->input('location_id');
+        $permitted = auth()->user()->permitted_locations();
+        if ($permitted !== 'all' && ! empty($locationId) && ! in_array($locationId, $permitted)) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        return response()->json([
+            'results' => $this->ledgerUtil->searchAccounts($businessId, $request->input('q'), $locationId, $permitted),
+        ]);
+    }
+
+    public function data(Request $request)
+    {
+        $this->authorizeLedger();
+
+        return response()->json($this->statement($request, (int) $request->input('page', 1), (int) $request->input('per_page', 25)));
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $this->authorizeLedger();
+        $statement = $this->statement($request, 1, 0);
+        if (! empty($statement['error'])) {
+            abort(422, 'Select an account.');
+        }
+        $filename = 'ledger-'.$statement['account']['code'].'.xlsx';
+
+        return Excel::download(new AccountLedgerExport($statement), $filename);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $this->authorizeLedger();
+        $statement = $this->statement($request, 1, 0);
+        if (! empty($statement['error'])) {
+            abort(422, 'Select an account.');
+        }
+
+        $mpdf = $this->pdf();
+        $mpdf->WriteHTML(view('account.ledger_print', $this->printData($statement))->render());
+
+        return response($mpdf->Output('ledger-'.$statement['account']['code'].'.pdf', 'S'), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="ledger-'.$statement['account']['code'].'.pdf"',
+        ]);
+    }
+
+    public function printLedger(Request $request)
+    {
+        $this->authorizeLedger();
+        $statement = $this->statement($request, 1, 0);
+        if (! empty($statement['error'])) {
+            abort(422, 'Select an account.');
+        }
+
+        return view('account.ledger_print', $this->printData($statement));
+    }
+
+    private function statement(Request $request, $page, $perPage)
+    {
+        $businessId = $request->session()->get('user.business_id');
+        $permitted = auth()->user()->permitted_locations();
+        $locationId = $request->input('location_id');
+        if ($locationId === '' || $locationId === 'all') {
+            $locationId = null;
+        }
+        if ($permitted !== 'all' && ! empty($locationId) && ! in_array($locationId, $permitted)) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        try {
+            $start = $this->ledgerUtil->uf_date($request->input('start_date'));
+            $end = $this->ledgerUtil->uf_date($request->input('end_date'));
+        } catch (\Exception $e) {
+            $start = Carbon::now()->startOfMonth()->toDateString();
+            $end = Carbon::now()->endOfMonth()->toDateString();
+        }
+        if (empty($start) || empty($end)) {
+            $start = Carbon::now()->startOfMonth()->toDateString();
+            $end = Carbon::now()->endOfMonth()->toDateString();
+        }
+        $start = Carbon::parse($start)->toDateString();
+        $end = Carbon::parse($end)->toDateString();
+        if ($start > $end) {
+            [$start, $end] = [$end, $start];
+        }
+
+        $report = $this->ledgerUtil->report([
+            'business_id' => $businessId,
+            'account_key' => $request->input('account_key'),
+            'start' => $start,
+            'end' => $end,
+            'location_id' => $locationId,
+            'permitted_locations' => $permitted,
+            'voucher' => $request->input('voucher'),
+            'search' => $request->input('search'),
+            'status' => $request->input('status', 'posted'),
+            'include_cancelled' => $request->boolean('include_cancelled'),
+        ], $page, $perPage);
+
+        if (! empty($report['error']) && $report['error'] === 'denied') {
+            abort(403, 'Unauthorized action.');
+        }
+
+        return $report;
+    }
+
+    private function printData(array $statement)
+    {
+        return [
+            'statement' => $statement,
+            'business_name' => session('business.name'),
+            'generated_at' => $this->ledgerUtil->format_date(Carbon::now()->toDateTimeString(), true),
+            'period_label' => $this->ledgerUtil->format_date($statement['period']['start']).' - '.$this->ledgerUtil->format_date($statement['period']['end']),
+        ];
+    }
+
+    private function pdf()
+    {
+        return new \Mpdf\Mpdf([
+            'tempDir' => public_path('uploads/temp'),
+            'mode' => 'utf-8',
+            'format' => 'A4-L',
+            'autoScriptToLang' => true,
+            'autoLangToFont' => true,
+            'autoVietnamese' => true,
+            'autoArabic' => true,
+            'useSubstitutions' => true,
+        ]);
+    }
+
+    private function authorizeLedger()
+    {
+        if (! $this->ledgerUtil->canOpenLedger(auth()->user())) {
+            abort(403, 'Unauthorized action.');
+        }
+    }
+
+    private function voucherTypes()
+    {
+        return [
+            '' => __('lang_v1.all'),
+            'sell' => __('sale.sale'),
+            'purchase' => __('lang_v1.purchase'),
+            'sell_return' => __('lang_v1.sell_return'),
+            'purchase_return' => __('lang_v1.purchase_return'),
+            'expense' => __('lang_v1.expense'),
+            'payment' => __('lang_v1.payment'),
+            'opening_balance' => __('lang_v1.opening_balance'),
+            'fund_transfer' => __('account.fund_transfer'),
+            'deposit' => __('account.deposit'),
+            'ledger_discount' => __('lang_v1.ledger_discount'),
+        ];
+    }
+}

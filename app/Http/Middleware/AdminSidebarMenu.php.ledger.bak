@@ -518,11 +518,6 @@ class AdminSidebarMenu
                     __('lang_v1.payment_accounts'),
                     function ($sub) {
                         $sub->url(
-                            action([\App\Http\Controllers\AccountLedgerController::class, 'index']),
-                            __('lang_v1.ledger'),
-                            ['icon' => '', 'active' => request()->segment(1) == 'account' && request()->segment(2) == 'ledger']
-                        );
-                        $sub->url(
                             action([\App\Http\Controllers\AccountController::class, 'index']),
                             __('account.list_accounts'),
                             ['icon' => '', 'active' => request()->segment(1) == 'account' && request()->segment(2) == 'account']
@@ -556,12 +551,6 @@ class AdminSidebarMenu
                     <path d="M7 15l.01 0"></path>
                     <path d="M11 15l2 0"></path>
                   </svg>']
-                )->order(50);
-            } elseif (auth()->user()->can('customer.view') || auth()->user()->can('customer.view_own') || auth()->user()->can('supplier.view') || auth()->user()->can('supplier.view_own')) {
-                $menu->url(
-                    action([\App\Http\Controllers\AccountLedgerController::class, 'index']),
-                    __('lang_v1.ledger'),
-                    ['icon' => '<svg aria-hidden="true" class="tw-size-5 tw-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><path d="M3 5m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z"></path><path d="M3 10l18 0"></path></svg>', 'active' => request()->segment(1) == 'account' && request()->segment(2) == 'ledger']
                 )->order(50);
             }
 

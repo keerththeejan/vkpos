@@ -70,12 +70,11 @@ class HomeController extends Controller
         }
 
         $business_id = request()->session()->get('user.business_id');
-        $ledger_snapshot = app(\App\Utils\AccountLedgerUtil::class)->dashboardSnapshot($business_id);
 
         $is_admin = $this->businessUtil->is_admin(auth()->user());
 
         if (! auth()->user()->can('dashboard.data')) {
-            return view('home.index', compact('ledger_snapshot'));
+            return view('home.index');
         }
 
         $fy = $this->businessUtil->getCurrentFinancialYear($business_id);
@@ -211,7 +210,7 @@ class HomeController extends Controller
         $common_settings = ! empty(session('business.common_settings')) ? session('business.common_settings') : [];
 
 
-        return view('home.index', compact('sells_chart_1', 'sells_chart_2', 'widgets', 'all_locations', 'common_settings', 'is_admin', 'ledger_snapshot'));
+        return view('home.index', compact('sells_chart_1', 'sells_chart_2', 'widgets', 'all_locations', 'common_settings', 'is_admin'));
     }
 
     /**

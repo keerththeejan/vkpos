@@ -66,35 +66,6 @@
                             @endif
                         @endif
                     </div>
-                    @if (!empty($ledger_snapshot))
-                        <div class="tw-mt-4 tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 xl:tw-grid-cols-4 tw-gap-4">
-                            <a href="{{ action([\App\Http\Controllers\AccountLedgerController::class, 'index']) }}" class="tw-block tw-bg-white tw-rounded-xl tw-ring-1 tw-ring-gray-200 tw-shadow-sm hover:tw-shadow-md tw-p-4 tw-text-gray-900">
-                                <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
-                                    <p class="tw-text-sm tw-font-semibold tw-tracking-wide">@lang('lang_v1.ledger_title')</p>
-                                    <span class="tw-text-primary-700 tw-text-sm tw-font-medium" aria-hidden="true">→</span>
-                                </div>
-                                <p class="tw-mt-0.5 tw-text-xs tw-text-gray-500">@lang('lang_v1.ledger_statement')</p>
-                                <div class="tw-grid tw-grid-cols-2 tw-gap-x-3 tw-gap-y-2 tw-mt-3">
-                                    <div>
-                                        <p class="tw-text-xs tw-text-gray-500">@lang('lang_v1.ledger_total_accounts')</p>
-                                        <p class="tw-text-base tw-font-semibold tw-tabular-nums">{{ number_format($ledger_snapshot['accounts']) }}</p>
-                                    </div>
-                                    <div>
-                                        <p class="tw-text-xs tw-text-gray-500">@lang('lang_v1.ledger_tx_today')</p>
-                                        <p class="tw-text-base tw-font-semibold tw-tabular-nums">{{ number_format($ledger_snapshot['transactions']) }}</p>
-                                    </div>
-                                    <div>
-                                        <p class="tw-text-xs tw-text-gray-500">@lang('lang_v1.ledger_debit_today')</p>
-                                        <p class="tw-text-sm tw-font-semibold tw-tabular-nums tw-whitespace-nowrap">@format_currency($ledger_snapshot['debit'])</p>
-                                    </div>
-                                    <div>
-                                        <p class="tw-text-xs tw-text-gray-500">@lang('lang_v1.ledger_credit_today')</p>
-                                        <p class="tw-text-sm tw-font-semibold tw-tabular-nums tw-whitespace-nowrap">@format_currency($ledger_snapshot['credit'])</p>
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    @endif
                     @if (auth()->user()->can('dashboard.data'))
                         @if ($is_admin)
                             <div class="tw-grid tw-grid-cols-1 tw-gap-4 tw-mt-6 sm:tw-grid-cols-2 xl:tw-grid-cols-4 sm:tw-gap-5">

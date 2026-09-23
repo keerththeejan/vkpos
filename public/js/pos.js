@@ -488,6 +488,7 @@ $(document).ready(function() {
             __write_number(tr.find('input.pos_line_total'), line_total, false);
             tr.find('span.pos_line_total_text').text(__currency_trans_from_en(line_total, true));
             pos_each_row(tr);
+            pos_sync_discount_price_floor(tr);
             pos_total_row();
             round_row_to_iraqi_dinnar(tr);
         }
@@ -820,7 +821,7 @@ $(document).ready(function() {
                 if (!$(this).is(":visible") && $(this).data('rule-min-value')) {
                     var val = __read_number($(this));
                     var error_msg_td = $(this).closest('tr').find('.pos_line_total_text').closest('td');
-                    if (val > $(this).data('rule-min-value')) {
+                    if (val < pos_row_min_price($(this))) {
                         is_msp_valid = false;
                         error_msg_td.append( '<label class="error">' + $(this).data('msg-min-value') + '</label>');
                     } else {
@@ -1129,7 +1130,7 @@ $(document).ready(function() {
             if (!$(this).is(":visible") && $(this).data('rule-min-value')) {
                 var val = __read_number($(this));
                 var error_msg_td = $(this).closest('tr').find('.pos_line_total_text').closest('td');
-                if (val > $(this).data('rule-min-value')) {
+                if (val < pos_row_min_price($(this))) {
                     is_msp_valid = false;
                     error_msg_td.append( '<label class="error">' + $(this).data('msg-min-value') + '</label>');
                 } else {
@@ -2401,6 +2402,51 @@ function print_receipt_in_iframe(html) {
         }
     }
     setTimeout(doPrint, 1600);
+}
+
+function pos_row_min_price(price_input) {
+    var floor = price_input.data('msp-floor');
+    if (floor === undefined || floor === null || floor === '') {
+        floor = price_input.attr('data-rule-min-value');
+    }
+    return __number_uf(floor);
+}
+
+// A line discount is allowed to sell below the original price.
+// Move the minimum-price rule down to the discounted price, and
+// restore it when the discount is removed.
+function pos_sync_discount_price_floor(tr) {
+    var price_input = tr.find('input.pos_unit_price_inc_tax');
+    if (!price_input.length || price_input.attr('data-rule-min-value') === undefined) {
+        return;
+    }
+
+    if (price_input.data('msp-base') === undefined) {
+        price_input.data('msp-base', __number_uf(price_input.attr('data-rule-min-value')));
+    }
+
+    var base = parseFloat(price_input.data('msp-base'));
+    var current = __read_number(price_input);
+    if (isNaN(base) || isNaN(current)) {
+        return;
+    }
+
+    var floor = current < base ? current : base;
+    price_input.data('msp-floor', floor);
+    price_input.attr('data-rule-min-value', floor);
+    price_input.data('ruleMinValue', floor);
+    price_input.data('rule-min-value', floor);
+
+    try {
+        price_input.rules('add', { 'min-value': floor });
+    } catch (e) {}
+
+    price_input.removeClass('error');
+    tr.find('label.error').remove();
+
+    if (typeof pos_form_validator !== 'undefined' && pos_form_validator) {
+        pos_form_validator.element(price_input);
+    }
 }
 
 function calculate_discounted_unit_price(row) {

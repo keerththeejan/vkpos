@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ $business_name }} - @lang('lang_v1.ledger')</title>
+    <style>
+        body { font-family: DejaVu Sans, Arial, sans-serif; color: #000; font-size: 12px; }
+        h1 { font-size: 18px; margin: 0; }
+        h2 { font-size: 14px; margin: 2px 0 10px; font-weight: normal; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #ccc; padding: 4px 6px; }
+        th { text-align: left; border-bottom: 1px solid #111; }
+        .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .total td { font-weight: bold; border-top: 2px solid #111; }
+        .meta { margin: 8px 0 12px; }
+        @page { size: A4 landscape; margin: 12mm; }
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <button class="no-print" onclick="window.print()">@lang('messages.print')</button>
+    <h1>{{ $business_name }}</h1>
+    <h2>@lang('lang_v1.ledger') — @lang('lang_v1.ledger_statement')</h2>
+    <div class="meta">
+        <div><strong>@lang('account.account'):</strong> {{ $statement['account']['code'] }} - {{ $statement['account']['name'] }}</div>
+        <div><strong>@lang('account.account_type'):</strong> {{ $statement['account']['group'] }}</div>
+        <div><strong>@lang('lang_v1.ledger_normal'):</strong> {{ $statement['account']['normal'] }}</div>
+        <div><strong>@lang('report.date_range'):</strong> {{ $period_label }}</div>
+        <div><strong>@lang('lang_v1.opening_balance'):</strong> {{ $statement['opening_display'] }}</div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>@lang('lang_v1.date')</th>
+                <th>@lang('lang_v1.voucher_no')</th>
+                <th>@lang('lang_v1.type')</th>
+                <th>@lang('lang_v1.ref_no')</th>
+                <th>@lang('lang_v1.description')</th>
+                <th class="num">@lang('account.debit')</th>
+                <th class="num">@lang('account.credit')</th>
+                <th class="num">@lang('lang_v1.balance')</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse ($statement['rows'] as $row)
+                <tr>
+                    <td>{{ $row['date'] }}</td>
+                    <td>{{ $row['voucher'] }}</td>
+                    <td>{{ $row['type'] }}</td>
+                    <td>{{ $row['reference'] }}</td>
+                    <td>{{ $row['description'] }}</td>
+                    <td class="num">{{ $row['debit'] }}</td>
+                    <td class="num">{{ $row['credit'] }}</td>
+                    <td class="num">{{ $row['balance'] }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="8">@lang('lang_v1.ledger_no_transactions')</td>
+                </tr>
+            @endforelse
+        </tbody>
+        <tfoot>
+            <tr class="total">
+                <td colspan="5">@lang('sale.total')</td>
+                <td class="num">{{ $statement['debit_display'] }}</td>
+                <td class="num">{{ $statement['credit_display'] }}</td>
+                <td class="num">{{ $statement['closing_display'] }}</td>
+            </tr>
+        </tfoot>
+    </table>
+    <p><strong>@lang('lang_v1.ledger_closing'):</strong> {{ $statement['closing_display'] }}</p>
+    <p>@lang('lang_v1.ledger_generated'): {{ $generated_at }}</p>
+    <script>
+        window.addEventListener('load', function () {
+            if (window.location.search.indexOf('auto=1') !== -1) {
+                window.print();
+            }
+        });
+    </script>
+</body>
+</html>

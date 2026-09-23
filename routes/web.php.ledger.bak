@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AccountController;
-use App\Http\Controllers\AccountLedgerController;
 use App\Http\Controllers\AccountReportsController;
 use App\Http\Controllers\AccountTypeController;
 // use App\Http\Controllers\Auth;
@@ -409,12 +408,6 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::resource('discount', DiscountController::class);
 
     Route::prefix('account')->group(function () {
-        Route::get('/ledger', [AccountLedgerController::class, 'index']);
-        Route::get('/ledger/accounts', [AccountLedgerController::class, 'accounts']);
-        Route::get('/ledger/data', [AccountLedgerController::class, 'data']);
-        Route::get('/ledger/excel', [AccountLedgerController::class, 'exportExcel']);
-        Route::get('/ledger/pdf', [AccountLedgerController::class, 'exportPdf']);
-        Route::get('/ledger/print', [AccountLedgerController::class, 'printLedger']);
         Route::resource('/account', AccountController::class);
         Route::get('/fund-transfer/{id}', [AccountController::class, 'getFundTransfer']);
         Route::post('/fund-transfer', [AccountController::class, 'postFundTransfer']);

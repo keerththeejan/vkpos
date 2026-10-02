@@ -1,4 +1,4 @@
-<div class="row">
+<div class="row pos-entry-bar">
 	<div class="col-md-12">
 		<p><strong>@lang('sale.invoice_no'):</strong> {{$transaction->invoice_no}}</p>
 	</div>
@@ -47,7 +47,7 @@
 		</div>
 	</div>
 </div>
-<div class="row">
+<div class="row pos-entry-extra">
 	@if(!empty($pos_settings['show_invoice_layout']))
 	<div class="col-md-4">
 		<div class="form-group">
@@ -175,7 +175,7 @@
         @endif
     @endforeach
 @endif
-<div class="row">
+<div class="row pos-cart-area">
 	<div class="col-sm-12 pos_product_div">
 		<input type="hidden" name="sell_price_tax" id="sell_price_tax" value="{{$business_details->sell_price_tax}}">
 
@@ -188,7 +188,22 @@
 				$hide_tax = 'hide';
 			}
 		@endphp
-		<table class="table table-condensed table-bordered table-responsive pos-excel-table" id="pos_table">
+		<div class="pos-table-wrapper">
+		<table class="table table-condensed table-bordered table-responsive pos-excel-table pos-cart-table @if(!empty($pos_settings['inline_service_staff'])) pos-cart-table-staff @endif" id="pos_table">
+			<colgroup>
+				<col class="pos-col-no">
+				<col class="pos-col-product-w">
+				<col class="pos-col-sku-w">
+				<col class="pos-col-qty-w">
+				<col class="pos-col-unit-w">
+				@if(!empty($pos_settings['inline_service_staff']))
+					<col class="pos-col-staff-w">
+				@endif
+				<col class="pos-col-price-w">
+				<col class="pos-col-discount-w">
+				<col class="pos-col-subtotal-w">
+				<col class="pos-col-action-w">
+			</colgroup>
 			<thead>
 				<tr>
 					<th class="pos-col-num">#</th>
@@ -230,5 +245,11 @@
 			@endforeach
 			</tbody>
 		</table>
+		</div>
+		<div class="pos-cart-empty" id="pos_cart_empty" hidden>
+			<i class="fa fa-shopping-cart" aria-hidden="true"></i>
+			<strong>No products added</strong>
+			<span>Search for a product or scan a barcode to begin.</span>
+		</div>
 	</div>
 </div>

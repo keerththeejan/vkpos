@@ -31,7 +31,7 @@
         <div class="tw-w-full md:tw-w-1/3">
             <div class="tw-flex tw-items-center tw-gap-2">
                 <p><strong>@lang('sale.location'): &nbsp;</strong></p>
-                <div style="width: 28%">
+                <div class="pos-location-name">
                     @if (empty($transaction->location_id))
                         @if (count($business_locations) > 1)
                             {!! Form::select(
@@ -49,7 +49,7 @@
                     @endif
                 </div>
                 <div
-                    class="tw-hidden md:tw-block tw-bg-[#2563EB] hover:tw-bg-[#1D4ED8] tw-py-1.5 tw-px-2 tw-rounded-md">
+                    class="pos-clock tw-hidden md:tw-block tw-bg-[#2563EB] hover:tw-bg-[#1D4ED8] tw-py-1.5 tw-px-2 tw-rounded-md">
                      &nbsp; <span
                         class="curr_datetime text-white tw-font-semibold">{{ @format_datetime('now') }}</span>
                     <i class="fa fa-keyboard hover-q text-white" aria-hidden="true" data-container="body"

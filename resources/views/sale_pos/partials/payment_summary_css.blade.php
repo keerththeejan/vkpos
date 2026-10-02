@@ -235,9 +235,10 @@ body.hold-transition.lockscreen .pos_form_totals,
     border-radius: 0 !important;
     box-shadow: none !important;
     padding: 0 !important;
-    max-width: 440px;
+    max-width: none;
     width: 100%;
-    margin-left: auto !important;
+    margin-top: 0 !important;
+    margin-left: 0 !important;
     margin-right: 0 !important;
 }
 

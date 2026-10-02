@@ -257,6 +257,10 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::get('/labels/show', [LabelsController::class, 'show']);
     Route::get('/labels/add-product-row', [LabelsController::class, 'addProductRow']);
     Route::get('/labels/preview', [LabelsController::class, 'preview']);
+    Route::get('/labels/products/search', [LabelsController::class, 'searchProducts']);
+    Route::get('/labels/product/{variation_id}', [LabelsController::class, 'getProduct'])->where('variation_id', '[0-9]+');
+    Route::post('/labels/print', [LabelsController::class, 'printLabels']);
+    Route::post('/labels/test-print', [LabelsController::class, 'testPrint']);
 
     //Reports...
     Route::get('/reports/gst-purchase-report', [ReportController::class, 'gstPurchaseReport']);

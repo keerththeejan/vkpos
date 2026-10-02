@@ -325,6 +325,33 @@
     wireBuyingPricePopover();
     tickClock();
     setInterval(tickClock, 30000);
+    document.querySelectorAll('.pos-header [title], .pos-form-actions button[title], .pos-header button, .pos-header a').forEach(function (el) {
+      if (el.getAttribute('aria-label')) return;
+      var label = el.getAttribute('title') || (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (label) el.setAttribute('aria-label', label);
+    });
+
+    function syncCartEmpty() {
+      var empty = document.getElementById('pos_cart_empty');
+      var table = document.getElementById('pos_table');
+      if (!empty || !table) return;
+      var rows = table.querySelectorAll('tbody tr.product_row').length;
+      var panel = table.closest('.pos_product_div');
+      if (rows > 0) {
+        empty.setAttribute('hidden', 'hidden');
+        if (panel) panel.classList.remove('is-empty');
+      } else {
+        empty.removeAttribute('hidden');
+        if (panel) panel.classList.add('is-empty');
+      }
+    }
+
+    syncCartEmpty();
+    var cartBody = document.querySelector('#pos_table tbody');
+    if (cartBody && window.MutationObserver) {
+      new MutationObserver(syncCartEmpty).observe(cartBody, { childList: true });
+    }
+
     syncKpis();
     syncPaymentSummary();
     setInterval(function () {

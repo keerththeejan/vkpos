@@ -3,12 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Barcode;
-use App\Product;
 use App\SellingPriceGroup;
+use App\Services\BarcodeLabelService;
 use App\Utils\ProductUtil;
 use App\Utils\TransactionUtil;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LabelsController extends Controller
 {
@@ -19,16 +20,19 @@ class LabelsController extends Controller
 
     protected $productUtil;
 
+    protected $labels;
+
     /**
      * Constructor
      *
      * @param  TransactionUtil  $TransactionUtil
      * @return void
      */
-    public function __construct(TransactionUtil $transactionUtil, ProductUtil $productUtil)
+    public function __construct(TransactionUtil $transactionUtil, ProductUtil $productUtil, BarcodeLabelService $labels)
     {
         $this->transactionUtil = $transactionUtil;
         $this->productUtil = $productUtil;
+        $this->labels = $labels;
     }
 
     /**
@@ -42,32 +46,44 @@ class LabelsController extends Controller
         $purchase_id = $request->get('purchase_id', false);
         $product_id = $request->get('product_id', false);
 
-        //Get products for the business
         $products = [];
-        $price_groups = [];
         if ($purchase_id) {
             $products = $this->transactionUtil->getPurchaseProducts($business_id, $purchase_id);
         } elseif ($product_id) {
             $products = $this->productUtil->getDetailsFromProduct($business_id, $product_id);
         }
 
-        //get price groups
-        $price_groups = [];
-        if (! empty($purchase_id) || ! empty($product_id)) {
-            $price_groups = SellingPriceGroup::where('business_id', $business_id)
-                                    ->active()
-                                    ->pluck('name', 'id');
+        $queue = [];
+        $initialVariationId = null;
+        foreach ($products as $product) {
+            if (empty($product->variation_id)) {
+                continue;
+            }
+            $queue[] = [
+                'variation_id' => (int) $product->variation_id,
+                'name' => trim(($product->product_name ?? '').' '.($product->variation_name ?? '')),
+                'quantity' => max(1, (int) ceil((float) ($product->quantity ?? 1))),
+            ];
+        }
+        if (count($queue) === 1) {
+            $initialVariationId = $queue[0]['variation_id'];
         }
 
-        $barcode_settings = Barcode::where('business_id', $business_id)
-                                ->orWhereNull('business_id')
-                                ->select(DB::raw('CONCAT(name, ", ", COALESCE(description, "")) as name, id, is_default'))
-                                ->get();
-        $default = $barcode_settings->where('is_default', 1)->first();
-        $barcode_settings = $barcode_settings->pluck('name', 'id');
+        $zebraConfig = [
+            'debug' => (bool) config('app.debug'),
+            'defaults' => $this->labels->defaultLayout(),
+            'initialVariationId' => $initialVariationId,
+            'queue' => $queue,
+            'settingsKey' => BarcodeLabelService::SETTINGS_KEY,
+            'urls' => [
+                'search' => url('/labels/products/search'),
+                'product' => url('/labels/product'),
+                'print' => url('/labels/print'),
+                'test' => url('/labels/test-print'),
+            ],
+        ];
 
-        return view('labels.show')
-            ->with(compact('products', 'barcode_settings', 'default', 'price_groups'));
+        return view('labels.show')->with(compact('zebraConfig'));
     }
 
     /**
@@ -270,5 +286,141 @@ class LabelsController extends Controller
         }
 
         //return $output;
+    }
+
+    /**
+     * Live product search by name, product code, or variation SKU/barcode.
+     */
+    public function searchProducts(Request $request)
+    {
+        $businessId = (int) $request->session()->get('user.business_id');
+        $term = (string) $request->get('term', '');
+
+        return response()->json($this->labels->search($businessId, $term));
+    }
+
+    /**
+     * Server-side product, barcode, and selling price for one variation.
+     */
+    public function getProduct(Request $request, $variation_id)
+    {
+        $businessId = (int) $request->session()->get('user.business_id');
+        $product = $this->labels->findVariation($businessId, (int) $variation_id);
+        if (! $product) {
+            return response()->json([
+                'success' => false,
+                'msg' => 'Product not found.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'product' => $product,
+        ]);
+    }
+
+    /**
+     * Build ZPL from the stored selling price and barcode. The browser sends this to QZ Tray.
+     */
+    public function printLabels(Request $request)
+    {
+        return $this->zplResponse($request, false);
+    }
+
+    /**
+     * Calibration label using the same layout as product labels.
+     */
+    public function testPrint(Request $request)
+    {
+        return $this->zplResponse($request, true);
+    }
+
+    private function zplResponse(Request $request, bool $test)
+    {
+        $validated = $request->validate([
+            'variation_id' => $test ? 'nullable|integer' : 'required|integer',
+            'quantity' => 'required|integer|min:1|max:500',
+            'copies' => 'nullable|integer|min:1|max:20',
+            'print_mode' => 'required|in:row,individual',
+            'vertical_text' => 'nullable|string|max:80',
+            'show_barcode' => 'nullable|boolean',
+            'show_sku' => 'nullable|boolean',
+            'show_price' => 'nullable|boolean',
+            'show_vertical' => 'nullable|boolean',
+            'price_prefix' => 'nullable|boolean',
+            'layout' => 'required|array',
+        ]);
+
+        $quantity = (int) $validated['quantity'];
+        $copies = (int) ($validated['copies'] ?? 1);
+        $mode = $validated['print_mode'];
+        $layout = $this->labels->normalizeLayout($validated['layout']);
+        $stickers = $this->labels->stickerCount($quantity, $mode, $copies);
+        if ($stickers > 1500) {
+            return response()->json([
+                'success' => false,
+                'msg' => 'Too many labels in one job. Print 1,500 labels or fewer.',
+            ], 422);
+        }
+
+        if ($test) {
+            $label = $this->labels->testPayload(true);
+        } else {
+            $businessId = (int) $request->session()->get('user.business_id');
+            $product = $this->labels->findVariation($businessId, (int) $validated['variation_id']);
+            if (! $product) {
+                return response()->json([
+                    'success' => false,
+                    'msg' => 'Product not found.',
+                ], 404);
+            }
+            if (empty($product['printable'])) {
+                return response()->json([
+                    'success' => false,
+                    'msg' => $product['error'] ?: 'Selected product does not have a valid barcode.',
+                ], 422);
+            }
+
+            $barcodeError = $this->labels->validateBarcode($product['barcode']);
+            if ($barcodeError) {
+                return response()->json([
+                    'success' => false,
+                    'msg' => $barcodeError,
+                ], 422);
+            }
+
+            $vertical = $request->exists('vertical_text')
+                ? $this->labels->sanitizeText($request->input('vertical_text'), 80)
+                : $product['name'];
+
+            $label = [
+                'barcode' => $product['barcode'],
+                'sku' => $product['sku'],
+                'price_text' => $this->labels->formatPrice($product['price'], $request->boolean('price_prefix')),
+                'vertical_text' => $vertical,
+                'show_barcode' => $request->boolean('show_barcode', true),
+                'show_sku' => $request->boolean('show_sku', true),
+                'show_price' => $request->boolean('show_price', true),
+                'show_vertical' => $request->boolean('show_vertical', true),
+            ];
+        }
+
+        try {
+            $zpl = $this->labels->buildZpl($label, $quantity, $mode, $layout, $copies);
+        } catch (\Throwable $e) {
+            Log::error('Barcode ZPL generation failed: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'msg' => 'Could not build the label. Check the layout values and try again.',
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'zpl' => $zpl,
+            'labels' => $stickers,
+            'rows' => $mode === 'individual' ? (int) ceil($quantity / BarcodeLabelService::COLUMNS) * $copies : $quantity * $copies,
+        ]);
     }
 }

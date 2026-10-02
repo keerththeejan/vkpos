@@ -20,12 +20,10 @@
         </div>
     </div>
     <div class="row">
-        <div class="col-md-8 col-md-offset-2 col-sm-12" style="border: 1px solid #ccc;">
-            <div class="spacer"></div>
+        <div class="col-md-8 col-md-offset-2 col-sm-12">
             <div id="invoice_content">
                 {!! $receipt['html_content'] !!}
             </div>
-            <div class="spacer"></div>
         </div>
     </div>
     <div class="spacer"></div>

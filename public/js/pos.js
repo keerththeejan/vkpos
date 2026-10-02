@@ -17,6 +17,7 @@ $(document).ready(function() {
         pos_form_obj = $('form#edit_pos_sell_form');
     } else {
         pos_form_obj = $('form#add_pos_sell_form');
+        pos_total_row();
     }
     if ($('form#edit_pos_sell_form').length > 0 || $('form#add_pos_sell_form').length > 0) {
         initialize_printer();
@@ -1883,6 +1884,14 @@ function pos_total_row() {
 
     // Payment Summary "Items" is cart line count, not summed/converted quantity.
     var total_items = $('table#pos_table tbody tr.product_row').length;
+    var $cart_panel = $('table#pos_table').closest('.pos_product_div');
+    if (total_items > 0) {
+        $cart_panel.removeClass('is-empty');
+        $('#pos_cart_empty').attr('hidden', 'hidden');
+    } else {
+        $cart_panel.addClass('is-empty');
+        $('#pos_cart_empty').removeAttr('hidden');
+    }
 
     //updating shipping charges
     $('span#shipping_charges_amount').text(
@@ -2350,9 +2359,12 @@ function print_receipt_in_iframe(html) {
         iframe.id = 'vkpos_print_frame';
         iframe.setAttribute('aria-hidden', 'true');
         iframe.setAttribute('tabindex', '-1');
-        iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+        iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:80mm;height:1600px;border:0;opacity:0;pointer-events:none;';
         document.body.appendChild(iframe);
     }
+
+    iframe.style.width = '80mm';
+    iframe.style.height = '1600px';
 
     var win = iframe.contentWindow;
     if (!win) {
@@ -2360,8 +2372,14 @@ function print_receipt_in_iframe(html) {
     }
     var doc = win.document;
     doc.open();
+    doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#fff;height:auto;}</style></head><body>');
     doc.write(html);
+    doc.write('</body></html>');
     doc.close();
+
+    if (doc.querySelector('.paper-58')) {
+        iframe.style.width = '58mm';
+    }
 
     try {
         if (typeof __currency_convert_recursively === 'function') {

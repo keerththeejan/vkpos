@@ -2,210 +2,228 @@
 @section('title', __('barcode.print_labels'))
 
 @section('content')
-<section class="content zb-page">
-	<div class="zb-head">
-		<h1><i class="fa fa-barcode"></i> @lang('barcode.print_labels')</h1>
-		<p class="zb-lead">@lang('barcode.zebra_subtitle')</p>
-		<div id="zb-status" class="zb-status" role="status"><i></i> <span>QZ Tray not connected</span></div>
+@php
+	$ldBarcodeMeta = \App\Barcode::query()
+		->where(function ($q) {
+			$q->where('business_id', request()->session()->get('user.business_id'))
+				->orWhereNull('business_id');
+		})
+		->get()
+		->mapWithKeys(function ($b) {
+			return [$b->id => [
+				'id' => $b->id,
+				'name' => $b->name,
+				'width_mm' => round((float) $b->width * 25.4, 2),
+				'height_mm' => round((float) $b->height * 25.4, 2),
+				'stickers_in_one_row' => (int) $b->stickers_in_one_row,
+				'col_gap_mm' => round((float) $b->col_distance * 25.4, 2),
+				'row_gap_mm' => round((float) $b->row_distance * 25.4, 2),
+				'margin_top_mm' => round((float) $b->top_margin * 25.4, 2),
+				'margin_left_mm' => round((float) $b->left_margin * 25.4, 2),
+				'is_continuous' => (bool) $b->is_continuous,
+				'paper_width_mm' => round((float) $b->paper_width * 25.4, 2),
+			]];
+		});
+@endphp
+
+<div class="zl-modebar no-print" role="tablist">
+	<button type="button" class="zl-modebar__btn is-active" id="zl_mode_zebra">Zebra labels</button>
+	<button type="button" class="zl-modebar__btn" id="zl_mode_sheet">Sheet designer</button>
+</div>
+
+@include('labels.partials.zebra_workspace')
+
+<div class="ld-page no-print zl-is-hidden" id="ld_sheet_workspace">
+	<header class="ld-header">
+		<h1 class="ld-header__title">
+			<i class="fa fa-barcode"></i>
+			@lang('barcode.print_labels')
+			@show_tooltip(__('tooltip.print_label'))
+			<span class="ld-badge"><i class="fa fa-print"></i> Zebra ZD230 · 203 DPI</span>
+			<span class="ld-badge ld-badge--target">50×25 mm · 2-up</span>
+		</h1>
+		<p class="ld-header__subtitle">@lang('barcode.designer_subtitle')</p>
+	</header>
+
+	{!! Form::open(['url' => '#', 'method' => 'post', 'id' => 'preview_setting_form', 'onsubmit' => 'return false']) !!}
+	<input type="hidden" name="ld_text_lines" id="ld_text_lines" value="2">
+
+	{{-- sticker_layout radios (backend required) — driven by template picker --}}
+	<div class="ld-visually-hidden" aria-hidden="true">
+		@foreach(['default', 'line1', 'line2', 'line3', 'mfg_line1', 'mfg_line2', 'mfg_line3', 'custom'] as $lv)
+			<label><input type="radio" name="sticker_layout" value="{{ $lv }}" @if($lv==='line2') checked @endif></label>
+		@endforeach
 	</div>
 
-	<div id="zb-alert" class="alert zb-alert" role="alert"></div>
-
-	<div class="row">
-		<div class="col-lg-5">
-			<div class="zb-card">
-				<h2>@lang('barcode.zebra_product')</h2>
-				<div class="zb-body">
-					@if(!empty($zebraConfig['queue']) && count($zebraConfig['queue']) > 1)
-						<ul class="zb-queue" id="zb-queue"></ul>
-					@endif
-					<div class="zb-search">
-						<label for="zb-search">Search product</label>
-						<input type="text" id="zb-search" class="form-control" placeholder="Name, SKU, barcode, or product code" autocomplete="off">
-						<div id="zb-results" class="zb-results"></div>
-					</div>
-					<div class="zb-grid" style="margin-top:10px;">
-						<div class="zb-wide">
-							<label for="zb-name">Product name</label>
-							<input type="text" id="zb-name" class="form-control" readonly>
-						</div>
-						<div>
-							<label for="zb-sku">SKU</label>
-							<input type="text" id="zb-sku" class="form-control" readonly>
-						</div>
-						<div>
-							<label for="zb-barcode">Barcode</label>
-							<input type="text" id="zb-barcode" class="form-control" readonly>
-						</div>
-						<div>
-							<label for="zb-code">Product code</label>
-							<input type="text" id="zb-code" class="form-control" readonly>
-						</div>
-						<div>
-							<label for="zb-price">Selling price</label>
-							<input type="text" id="zb-price" class="form-control" readonly>
-						</div>
-						<div class="zb-wide">
-							<label for="zb-vertical">Vertical text</label>
-							<input type="text" id="zb-vertical" class="form-control" maxlength="80" placeholder="Optional text printed vertically">
-						</div>
-						<div>
-							<label for="zb-qty">Quantity</label>
-							<input type="number" id="zb-qty" class="form-control" min="1" max="500" value="1">
-						</div>
-					</div>
-					<div class="zb-checks">
-						<label><input type="checkbox" id="zb-show-barcode" checked> Barcode</label>
-						<label><input type="checkbox" id="zb-show-sku" checked> SKU</label>
-						<label><input type="checkbox" id="zb-show-price" checked> Price</label>
-						<label><input type="checkbox" id="zb-show-vertical" checked> Vertical text</label>
-						<label><input type="checkbox" id="zb-price-prefix"> Prefix with “Price”</label>
-					</div>
-					<p id="zb-product-error" class="text-danger zb-hint" style="display:none;"></p>
+	<div class="ld-workspace">
+		<aside class="ld-sidebar">
+			<div class="ld-panel">
+				<div class="ld-tabs" role="tablist">
+					<button type="button" class="ld-tab is-active" data-tab="ld_tab_products"><i class="fa fa-cube"></i> @lang('barcode.designer_tab_products')</button>
+					<button type="button" class="ld-tab" data-tab="ld_tab_templates"><i class="fa fa-th"></i> @lang('barcode.designer_tab_templates')</button>
+					<button type="button" class="ld-tab" data-tab="ld_tab_fields"><i class="fa fa-font"></i> @lang('barcode.designer_tab_fields')</button>
+					<button type="button" class="ld-tab" data-tab="ld_tab_print"><i class="fa fa-cog"></i> @lang('barcode.designer_tab_print')</button>
+					<button type="button" class="ld-tab" data-tab="ld_tab_advanced"><i class="fa fa-sliders"></i> @lang('barcode.designer_tab_advanced')</button>
 				</div>
-			</div>
 
-			<div class="zb-card">
-				<h2>@lang('barcode.zebra_print_settings')</h2>
-				<div class="zb-body">
-					<div class="zb-grid">
-						<div class="zb-wide">
-							<label for="zb-printer">Printer</label>
-							<select id="zb-printer" class="form-control">
-								<option value="">Select a printer</option>
-							</select>
-						</div>
-						<div>
-							<label for="zb-mode">Print mode</label>
-							<select id="zb-mode" class="form-control">
-								<option value="row">@lang('barcode.zebra_mode_row')</option>
-								<option value="individual">@lang('barcode.zebra_mode_individual')</option>
-							</select>
-						</div>
-						<div>
-							<label for="zb-copies">Copies</label>
-							<input type="number" id="zb-copies" class="form-control" min="1" max="20" value="1">
-						</div>
+				{{-- Products --}}
+				<div class="ld-tab-pane is-active ld-panel__body" id="ld_tab_products">
+					<div class="ld-search-wrap">
+						<i class="fa fa-search"></i>
+						{!! Form::text('search_product', null, ['class' => 'form-control', 'id' => 'search_product_for_label', 'placeholder' => __('lang_v1.enter_product_name_to_print_labels')]); !!}
 					</div>
-					<p id="zb-job" class="zb-hint"></p>
-					<div class="zb-actions">
-						<button type="button" class="btn btn-default" id="zb-detect"><i class="fa fa-search"></i> @lang('barcode.zebra_detect_printers')</button>
-						<button type="button" class="btn btn-default" id="zb-test"><i class="fa fa-flask"></i> @lang('barcode.zebra_test_print')</button>
-						<button type="button" class="btn btn-primary" id="zb-print" disabled><i class="fa fa-print"></i> @lang('barcode.zebra_print_labels')</button>
+					<div class="table-responsive">
+						<table class="table table-bordered table-condensed ld-product-table" id="product_table">
+							<thead>
+								<tr>
+									<th>@lang('barcode.products')</th>
+									<th>@lang('barcode.no_of_labels')</th>
+									@if(request()->session()->get('business.enable_lot_number') == 1)
+										<th>@lang('lang_v1.lot_number')</th>
+									@endif
+									@if(request()->session()->get('business.enable_product_expiry') == 1)
+										<th>@lang('product.exp_date')</th>
+									@endif
+									<th>@lang('lang_v1.packing_date')</th>
+									<th>@lang('lang_v1.selling_price_group')</th>
+								</tr>
+							</thead>
+							<tbody>
+								@include('labels.partials.show_table_rows', ['index' => 0])
+							</tbody>
+						</table>
 					</div>
 				</div>
-			</div>
 
-			<div class="zb-card">
-				<h2>@lang('barcode.zebra_layout_settings')</h2>
-				<div class="zb-body">
-					<div class="zb-grid">
-						<div>
-							<label for="zb-col1">Column 1 base X</label>
-							<input type="number" id="zb-col1" class="form-control zb-layout" data-k="col1X" value="{{ $zebraConfig['defaults']['col1X'] }}">
-						</div>
-						<div>
-							<label for="zb-col2">Column 2 base X</label>
-							<input type="number" id="zb-col2" class="form-control zb-layout" data-k="col2X" value="{{ $zebraConfig['defaults']['col2X'] }}">
-						</div>
-						<div>
-							<label for="zb-col3">Column 3 base X</label>
-							<input type="number" id="zb-col3" class="form-control zb-layout" data-k="col3X" value="{{ $zebraConfig['defaults']['col3X'] }}">
-						</div>
-						<div>
-							<label for="zb-bc-x">Barcode offset X</label>
-							<input type="number" id="zb-bc-x" class="form-control zb-layout" data-k="barcode.x" value="{{ $zebraConfig['defaults']['barcode']['x'] }}">
-						</div>
-						<div>
-							<label for="zb-bc-y">Barcode offset Y</label>
-							<input type="number" id="zb-bc-y" class="form-control zb-layout" data-k="barcode.y" value="{{ $zebraConfig['defaults']['barcode']['y'] }}">
-						</div>
-						<div>
-							<label for="zb-bc-w">Barcode width</label>
-							<input type="number" id="zb-bc-w" class="form-control zb-layout" data-k="barcode.width" step="0.1" min="1" max="10" value="{{ $zebraConfig['defaults']['barcode']['width'] }}">
-						</div>
-						<div>
-							<label for="zb-bc-h">Barcode height</label>
-							<input type="number" id="zb-bc-h" class="form-control zb-layout" data-k="barcode.height" min="10" max="120" value="{{ $zebraConfig['defaults']['barcode']['height'] }}">
-						</div>
-						<div>
-							<label for="zb-sku-x">SKU offset X</label>
-							<input type="number" id="zb-sku-x" class="form-control zb-layout" data-k="sku.x" value="{{ $zebraConfig['defaults']['sku']['x'] }}">
-						</div>
-						<div>
-							<label for="zb-sku-y">SKU offset Y</label>
-							<input type="number" id="zb-sku-y" class="form-control zb-layout" data-k="sku.y" value="{{ $zebraConfig['defaults']['sku']['y'] }}">
-						</div>
-						<div>
-							<label for="zb-price-x">Price offset X</label>
-							<input type="number" id="zb-price-x" class="form-control zb-layout" data-k="price.x" value="{{ $zebraConfig['defaults']['price']['x'] }}">
-						</div>
-						<div>
-							<label for="zb-price-y">Price offset Y</label>
-							<input type="number" id="zb-price-y" class="form-control zb-layout" data-k="price.y" value="{{ $zebraConfig['defaults']['price']['y'] }}">
-						</div>
-						<div>
-							<label for="zb-vert-x">Vertical text offset X</label>
-							<input type="number" id="zb-vert-x" class="form-control zb-layout" data-k="vertical.x" value="{{ $zebraConfig['defaults']['vertical']['x'] }}">
-						</div>
-						<div>
-							<label for="zb-vert-y">Vertical text offset Y</label>
-							<input type="number" id="zb-vert-y" class="form-control zb-layout" data-k="vertical.y" value="{{ $zebraConfig['defaults']['vertical']['y'] }}">
-						</div>
+				{{-- Templates --}}
+				<div class="ld-tab-pane ld-panel__body" id="ld_tab_templates">
+					<p class="text-muted small">@lang('barcode.designer_templates_help')</p>
+					<div class="ld-template-list" id="ld_template_grid"></div>
+
+					<div class="ld-panel__head mt-3"><i class="fa fa-industry"></i> @lang('barcode.designer_pro_layouts')</div>
+					<div class="ld-layout-grid mt-2">
+						<button type="button" class="ld-template-card" data-set-layout="line1">
+							<div class="ld-template-card__icon"><i class="fa fa-minus"></i></div>
+							<div class="ld-template-card__name">@lang('barcode.sticker_layout_line1')</div>
+						</button>
+						<button type="button" class="ld-template-card" data-set-layout="line2">
+							<div class="ld-template-card__icon"><i class="fa fa-bars"></i></div>
+							<div class="ld-template-card__name">@lang('barcode.sticker_layout_line2')</div>
+						</button>
+						<button type="button" class="ld-template-card" data-set-layout="line3">
+							<div class="ld-template-card__icon"><i class="fa fa-th-list"></i></div>
+							<div class="ld-template-card__name">@lang('barcode.sticker_layout_line3')</div>
+						</button>
+						<button type="button" class="ld-template-card" data-set-layout="mfg_line1">
+							<div class="ld-template-card__icon"><i class="fa fa-industry"></i></div>
+							<div class="ld-template-card__name">@lang('barcode.sticker_layout_mfg1')</div>
+						</button>
+						<button type="button" class="ld-template-card" data-set-layout="mfg_line2">
+							<div class="ld-template-card__icon"><i class="fa fa-industry"></i></div>
+							<div class="ld-template-card__name">@lang('barcode.sticker_layout_mfg2')</div>
+						</button>
+						<button type="button" class="ld-template-card" data-set-layout="mfg_line3">
+							<div class="ld-template-card__icon"><i class="fa fa-industry"></i></div>
+							<div class="ld-template-card__name">@lang('barcode.sticker_layout_mfg3')</div>
+						</button>
+						<button type="button" class="ld-template-card" data-set-layout="custom">
+							<div class="ld-template-card__icon"><i class="fa fa-arrows"></i></div>
+							<div class="ld-template-card__name">@lang('barcode.sticker_layout_custom')</div>
+						</button>
 					</div>
-					<div class="zb-actions">
-						<button type="button" class="btn btn-primary" id="zb-save"><i class="fa fa-save"></i> @lang('barcode.zebra_save_layout')</button>
-						<button type="button" class="btn btn-default" id="zb-reset">@lang('barcode.zebra_reset_layout')</button>
-					</div>
-					<p class="zb-hint">Saved in this browser as {{ $zebraConfig['settingsKey'] }}. Print a test label, adjust X/Y, then save.</p>
+					@include('labels.partials.custom_designer')
+				</div>
+
+				{{-- Fields + barcode/font options --}}
+				<div class="ld-tab-pane ld-panel__body" id="ld_tab_fields">
+					@include('labels.partials.designer.barcode_font_options')
+					<hr>
+					<p class="text-muted small mb-2">@lang('barcode.info_in_labels')</p>
+					@include('labels.partials.designer.field_options')
+				</div>
+
+				{{-- Print settings --}}
+				<div class="ld-tab-pane ld-panel__body" id="ld_tab_print">
+					@include('labels.partials.designer.print_settings')
+					<p class="ld-note mt-3">@lang('barcode.designer_size_reference')</p>
+					<div class="ld-size-chips" id="ld_size_chips"></div>
+				</div>
+
+				{{-- Advanced --}}
+				<div class="ld-tab-pane ld-panel__body" id="ld_tab_advanced">
+					<div class="ld-panel__head" style="margin:-16px -16px 12px;border-radius:0;"><i class="fa fa-toggle-on"></i> @lang('barcode.designer_advanced_toggles')</div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_show_barcode')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_barcode" checked><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.print_name')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_name" checked><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_show_sku')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_sku"><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_show_product_code')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_product_code"><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.print_price')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_price" checked><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_show_logo')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_logo"><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_show_qr')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_qr"><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('lang_v1.print_exp_date')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_expiry"><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_show_batch')</span><label class="ld-switch"><input type="checkbox" id="ld_adv_batch"><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_show_border')</span><label class="ld-switch"><input type="checkbox" id="ld_preview_border"><span class="ld-switch__slider"></span></label></div>
+					<div class="ld-toggle-row"><span>@lang('barcode.designer_rounded_corners')</span><label class="ld-switch"><input type="checkbox" id="ld_preview_rounded" checked><span class="ld-switch__slider"></span></label></div>
+
+					<div class="ld-panel__head mt-4" style="margin-left:-16px;margin-right:-16px;border-radius:0;"><i class="fa fa-list"></i> @lang('barcode.optional_label_fields')</div>
+					<div class="mt-2">@include('labels.partials.field_toggles')</div>
 				</div>
 			</div>
-		</div>
+		</aside>
 
-		<div class="col-lg-7">
-			<div class="zb-card">
-				<h2>@lang('barcode.zebra_live_preview')</h2>
-				<div class="zb-body">
-					<div class="zb-preview-meta">
-						<span id="zb-preview-caption">800 × 140 dots · 203 DPI · Zebra ZD230</span>
-						<label id="zb-preview-row-wrap" style="display:none;margin:0;">
-							Preview
-							<select id="zb-preview-row" class="form-control input-sm" style="display:inline-block;width:auto;height:28px;">
-								<option value="first">First row</option>
-								<option value="last">Last row</option>
-							</select>
-						</label>
-					</div>
-					<div class="zb-preview-scroll">
-						<div id="zb-scale-host" class="zb-scale-host">
-							<div id="zb-stage" class="zb-stage" aria-label="Label preview 800 by 140 dots">
-								<div class="zb-sticker" data-col="0"><svg class="zb-bc"></svg><div class="zb-sku"></div><div class="zb-price"></div><div class="zb-vert"></div><span class="zb-col-index">1</span></div>
-								<div class="zb-sticker" data-col="1"><svg class="zb-bc"></svg><div class="zb-sku"></div><div class="zb-price"></div><div class="zb-vert"></div><span class="zb-col-index">2</span></div>
-								<div class="zb-sticker" data-col="2"><svg class="zb-bc"></svg><div class="zb-sku"></div><div class="zb-price"></div><div class="zb-vert"></div><span class="zb-col-index">3</span></div>
-							</div>
-						</div>
-					</div>
-					<p id="zb-layout-note" class="zb-hint"></p>
-					@if(!empty($zebraConfig['debug']))
-						<button type="button" class="btn btn-default btn-sm" id="zb-show-zpl" style="margin-top:8px;">@lang('barcode.zebra_show_zpl')</button>
-						<textarea id="zb-zpl" class="form-control zb-zpl" readonly placeholder="Generated ZPL appears here"></textarea>
-					@endif
+		<main class="ld-preview-panel">
+			<div class="ld-preview-toolbar">
+				<strong><i class="fa fa-eye"></i> @lang('barcode.live_preview')</strong>
+				<span class="ld-preview-meta" id="ld_preview_meta">—</span>
+				<span class="text-muted small" id="ld_zoom_label">100%</span>
+				<div class="ld-zoom-group">
+					@foreach([50, 75, 100, 150, 200] as $z)
+						<button type="button" class="ld-zoom-btn @if($z===100) is-active @endif" data-zoom="{{ $z }}">{{ $z }}%</button>
+					@endforeach
 				</div>
 			</div>
-		</div>
+			<div class="ld-preview-stage">
+				<div id="label_live_preview_loading" class="hide">
+					<i class="fa fa-spinner fa-spin"></i> @lang('barcode.updating_preview')
+				</div>
+				<div class="ld-preview-viewport" id="ld_preview_viewport">
+					<div id="preview_box" class="label-live-preview-box"></div>
+				</div>
+			</div>
+			<div class="ld-actions">
+				<button type="button" class="ld-btn ld-btn--success" id="ld_btn_print"><i class="fa fa-print"></i> @lang('barcode.designer_print_label')</button>
+				<button type="button" class="ld-btn ld-btn--primary" id="ld_btn_print_all"><i class="fa fa-print"></i> @lang('barcode.designer_print_all')</button>
+				<button type="button" class="ld-btn ld-btn--outline" id="ld_btn_preview_refresh"><i class="fa fa-refresh"></i> @lang('barcode.preview')</button>
+				<button type="button" class="ld-btn ld-btn--outline" id="ld_btn_save_template"><i class="fa fa-save"></i> @lang('barcode.designer_save_template')</button>
+				<button type="button" class="ld-btn ld-btn--outline" id="ld_btn_load_template"><i class="fa fa-folder-open"></i> @lang('barcode.designer_load_template')</button>
+				<button type="button" class="ld-btn ld-btn--outline" id="ld_btn_duplicate"><i class="fa fa-copy"></i> @lang('barcode.designer_duplicate')</button>
+				<button type="button" class="ld-btn ld-btn--outline" id="ld_btn_reset"><i class="fa fa-undo"></i> @lang('barcode.reset_layout')</button>
+				<button type="button" class="ld-btn ld-btn--outline ld-visually-hidden" id="labels_preview">@lang('barcode.preview')</button>
+			</div>
+			<p class="text-muted small mt-2 mb-0">@lang('barcode.live_preview_help')</p>
+		</main>
 	</div>
-</section>
-@endsection
+
+	{!! Form::close() !!}
+</div>
+
+<script>
+	window.LD_BARCODE_META = @json($ldBarcodeMeta);
+	window.LD_ZEBRA_TARGET = { width_mm: 50, height_mm: 25, columns: 2, col_gap_mm: 2, row_gap_mm: 2 };
+</script>
+@stop
 
 @section('css')
-	<link rel="stylesheet" href="{{ asset('css/labels-zebra.css?v=' . $asset_v) }}">
+	<link rel="stylesheet" href="{{ asset('css/labels-print.css?v=' . $asset_v) }}">
+	<link rel="stylesheet" href="{{ asset('css/labels-sticker.css?v=' . $asset_v) }}">
+	<link rel="stylesheet" href="{{ asset('css/labels-designer.css?v=' . $asset_v) }}">
+	<link rel="stylesheet" href="{{ asset('css/labels-zebra.css') }}?v={{ $asset_v }}.{{ filemtime(public_path('css/labels-zebra.css')) }}">
 @endsection
 
 @section('javascript')
-	<script>
-		window.ZB_CONFIG = @json($zebraConfig);
-	</script>
-	<script src="{{ asset('js/vendor/JsBarcode.all.min.js?v=' . $asset_v) }}"></script>
-	<script src="{{ asset('js/vendor/qz-tray.js?v=' . $asset_v) }}"></script>
-	<script src="{{ asset('js/labels-zebra.js?v=' . $asset_v) }}"></script>
+	<script src="{{ asset('js/labels-print-engine.js') }}?v={{ $asset_v }}.{{ filemtime(public_path('js/labels-print-engine.js')) }}"></script>
+	<script src="{{ asset('js/labels-custom-designer.js?v=' . $asset_v) }}"></script>
+	<script src="{{ asset('js/labels-designer.js?v=' . $asset_v) }}"></script>
+	<script src="{{ asset('js/vendor/JsBarcode.all.min.js') }}?v={{ $asset_v }}"></script>
+	<script src="{{ asset('js/labels.js?v=' . $asset_v) }}"></script>
+	<script src="{{ asset('js/labels-zebra.js') }}?v={{ $asset_v }}.{{ filemtime(public_path('js/labels-zebra.js')) }}"></script>
 @endsection

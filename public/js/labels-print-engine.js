@@ -1489,6 +1489,7 @@
         canPrintFromPreview: canPrintFromPreview,
         openPrintFromPreview: openPrintFromPreview,
         openPrintFromServer: openPrintFromServer,
+        openPrintDocument: openPrintDocument,
         reflowForZebraPrint: reflowForZebraPrint,
         collectZebraPrintSheetsHtml: collectZebraPrintSheetsHtml,
         isLivePreviewContext: isLivePreviewContext,

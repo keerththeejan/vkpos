@@ -1760,6 +1760,13 @@ class SellPosController extends Controller
     {
         $output = [];
 
+        if (! $this->userCanAccessLocation($location_id)) {
+            return [
+                'success' => false,
+                'msg' => __('messages.something_went_wrong'),
+            ];
+        }
+
         try {
             $row_count = request()->get('product_row');
             $row_count = $row_count + 1;
@@ -1958,6 +1965,9 @@ class SellPosController extends Controller
             $category_id = $request->get('category_id');
             $brand_id = $request->get('brand_id');
             $location_id = $request->get('location_id');
+            if (! $this->userCanAccessLocation($location_id)) {
+                abort(403, 'Unauthorized action.');
+            }
             $term = $request->get('term');
 
             $check_qty = false;
@@ -2035,6 +2045,7 @@ class SellPosController extends Controller
                 'p.name',
                 'p.type',
                 'p.enable_stock',
+                'p.alert_quantity',
                 'p.image as product_image',
                 'variations.id',
                 'variations.name as variation',

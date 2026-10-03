@@ -2426,7 +2426,7 @@ $(document).on('click', '.load_more_notifications', function(e) {
     this_link.text(LANG.loading + '...');
     this_link.attr('disabled', true);
     var page = parseInt($('input#notification_page').val()) + 1;
-    var href = (typeof vkposUrl === 'function' ? vkposUrl('/load-more-notifications?page=' + page) : '/load-more-notifications?page=' + page);
+    var href = '/load-more-notifications?page=' + page;
     $.ajax({
         url: href,
         dataType: 'html',
@@ -2448,7 +2448,7 @@ $(document).on('click', 'a.load_notifications', function(e) {
     e.preventDefault();
         $('li.load_more_li').addClass('hide');
         var this_link = $(this);
-        var href = (typeof vkposUrl === 'function' ? vkposUrl('/load-more-notifications?page=1') : '/load-more-notifications?page=1');
+        var href = '/load-more-notifications?page=1';
         $('span.notifications_count').html(__fa_awesome());
         $.ajax({
             url: href,
@@ -2684,7 +2684,7 @@ $(document).on('click', 'button.activate-deactivate-location', function(){
 
 function getTotalUnreadNotifications(){
     if ($('span.notifications_count').length) {
-    var href = (typeof vkposUrl === 'function' ? vkposUrl('/get-total-unread') : '/get-total-unread');
+        var href = '/get-total-unread';
         $.ajax({
             url: href,
             dataType: 'json',

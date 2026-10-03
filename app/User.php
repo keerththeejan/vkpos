@@ -39,13 +39,6 @@ class User extends Authenticatable
     protected $guard_name = 'web';
 
     /**
-     * Per-request permitted location cache.
-     *
-     * @var array<string, mixed>
-     */
-    protected $cachedPermittedLocations = [];
-
-    /**
      * The attributes that should be mutated to dates.
      *
      * @var array
@@ -111,15 +104,10 @@ class User extends Authenticatable
      */
     public function permitted_locations($business_id = null)
     {
-        $cacheKey = (string) ($business_id ?? 'default');
-        if (array_key_exists($cacheKey, $this->cachedPermittedLocations)) {
-            return $this->cachedPermittedLocations[$cacheKey];
-        }
-
         $user = $this;
 
         if ($user->can('access_all_locations')) {
-            return $this->cachedPermittedLocations[$cacheKey] = 'all';
+            return 'all';
         } else {
             $business_id = ! is_null($business_id) ? $business_id : null;
             if (empty($business_id) && auth()->check()) {
@@ -138,7 +126,7 @@ class User extends Authenticatable
                 }
             }
 
-            return $this->cachedPermittedLocations[$cacheKey] = $permitted_locations;
+            return $permitted_locations;
         }
     }
 

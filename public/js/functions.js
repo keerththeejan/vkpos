@@ -384,7 +384,6 @@ function __sum_stock(table, class_name, label_direction = 'right') {
 
 function __print_receipt(section_id = null) {
     var printed = false;
-    document.body.classList.add('vkpos-printing-receipt');
     function doPrint() {
         if (printed) {
             return;
@@ -393,10 +392,6 @@ function __print_receipt(section_id = null) {
         window.print();
     }
     window.__vkposDoPrint = doPrint;
-    window.addEventListener('afterprint', function vkposAfterPrint() {
-        document.body.classList.remove('vkpos-printing-receipt');
-        window.removeEventListener('afterprint', vkposAfterPrint);
-    });
 
     var imgs;
     if (section_id) {

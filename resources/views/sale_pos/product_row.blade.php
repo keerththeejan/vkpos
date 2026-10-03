@@ -150,14 +150,40 @@
 			@include('sale_pos.partials.row_edit_product_price_modal')
 		</div> 
 		@endif
-<br>
-		<small class="text-muted p-1">
-			@if($product->enable_stock)
-			{{ @num_format($product->qty_available) }} {{$product->unit}} @lang('lang_v1.in_stock')
-			@else
-				--
-			@endif
-		</small>
+@if($product->enable_stock)
+			@php
+				$pos_stock = (float) ($product->qty_available ?? 0);
+				$pos_alert = (float) ($product->alert_quantity ?? 0);
+				$pos_cart = (float) ($product->quantity_ordered ?? 1);
+				$pos_after = $pos_stock - $pos_cart;
+				$pos_stock_class = $pos_stock <= 0 ? 'is-out' : (($pos_alert > 0 && $pos_stock <= $pos_alert) ? 'is-low' : '');
+				$posQtyText = function ($number) {
+					$number = (float) $number;
+					if (abs($number - round($number)) < 0.0000001) {
+						return (string) (int) round($number);
+					}
+					$precision = (int) session('business.quantity_precision', 2);
+					$currency = session('currency');
+					return number_format($number, $precision, $currency['decimal_separator'] ?? '.', $currency['thousand_separator'] ?? ',');
+				};
+			@endphp
+			<div class="pos-line-stock {{ $pos_stock_class }}"
+				data-base-qty="{{ $pos_stock }}"
+				data-alert-qty="{{ $pos_alert }}"
+				data-unit="{{ $product->unit }}"
+				data-enable-stock="1">
+				<span class="pos-stock-now">
+					@if($pos_stock <= 0)
+						@lang('lang_v1.pos_out_of_stock')
+					@elseif($pos_stock_class === 'is-low')
+						@lang('lang_v1.pos_low_stock'): {{ $posQtyText($pos_stock) }} {{ $product->unit }}
+					@else
+						@lang('lang_v1.pos_stock_label'): {{ $posQtyText($pos_stock) }} {{ $product->unit }}
+					@endif
+				</span>
+				<span class="pos-after-sale">@lang('lang_v1.pos_cart_qty'): {{ $posQtyText($pos_cart) }} {{ $product->unit }} · @lang('lang_v1.pos_after_sale'): {{ $posQtyText($pos_after) }} {{ $product->unit }}</span>
+			</div>
+		@endif
 
 		<!-- Description modal end -->
 		@if(in_array('modifiers' , $enabled_modules))

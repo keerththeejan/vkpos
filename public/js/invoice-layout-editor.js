@@ -44,7 +44,7 @@
     }
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<link rel="stylesheet" href="' + vendorCss() + '">' +
-      '<style>body{background:#fff;padding:8px;color:#111;margin:0 auto;width:100%;height:auto;min-height:0}</style></head><body>' +
+      '<style>body{background:#fff;padding:12px;color:#111;max-width:210mm;margin:0 auto} .row{margin-left:0;margin-right:0}</style></head><body>' +
       trimmed + '</body></html>';
   }
 

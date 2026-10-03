@@ -1917,22 +1917,4 @@ class Util
         return ['start' => $start, 'end' => $end];
     }
 
-    /**
-     * Apply an index-friendly datetime range instead of DATE(column) wrapping.
-     * Accepts Y-m-d or already-timestamped values without changing the calendar day.
-     */
-    public function whereDateRange($query, $column, $start_date = null, $end_date = null)
-    {
-        if (! empty($start_date) && ! empty($end_date)) {
-            $start = strlen($start_date) <= 10 ? $start_date.' 00:00:00' : $start_date;
-            $end = strlen($end_date) <= 10 ? $end_date.' 23:59:59' : $end_date;
-            $query->where($column, '>=', $start)->where($column, '<=', $end);
-        } elseif (empty($start_date) && ! empty($end_date)) {
-            $end = strlen($end_date) <= 10 ? $end_date.' 23:59:59' : $end_date;
-            $query->where($column, '<=', $end);
-        }
-
-        return $query;
-    }
-
 }

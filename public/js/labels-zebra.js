@@ -1,882 +1,1121 @@
-/**
- * VK POS Zebra label module.
- * Preview positions and ZPL both use layout.col* + element offsets.
- * The printer receives server-built ZPL so price and barcode come from the product record.
- */
 (function ($) {
-    var PRINT_WIDTH = 800;
-    var PRINT_LENGTH = 140;
-    var cfg = window.ZB_CONFIG || {};
-    var settingsKey = cfg.settingsKey || 'vkposBarcodeAlignmentV1';
-    var defaults = cfg.defaults || {};
+    var boot = window.ZL_BOOT || { ready: false, profiles: [], defaults: {}, urls: {}, queue: [] };
     var state = {
+        profiles: boot.profiles || [],
+        profileId: null,
         product: null,
-        searchTimer: null,
-        searchXhr: null,
-        connectPromise: null,
-        results: []
+        printing: false,
+        barcodeKey: '',
+        qzLoading: null
     };
 
-    function initialize() {
-        renderQueue();
-        loadSettings();
-        bindEvents();
-        updatePreview();
-        fitPreview();
-        if (cfg.initialVariationId) {
-            selectProduct(cfg.initialVariationId);
-        }
-        connectQzTray().then(getPrinters).catch(function () {
-            setStatus('QZ Tray is not running. Please start QZ Tray before printing.', 'off');
-        });
+    var alignKeys = [
+        'col1_x', 'col2_x', 'col3_x',
+        'barcode_x', 'barcode_y', 'barcode_width', 'barcode_height',
+        'sku_x', 'sku_y', 'sku_font_size', 'sku_font_weight',
+        'price_x', 'price_y', 'price_font_size',
+        'vertical_x', 'vertical_y', 'vertical_font_size',
+        'product_name_x', 'product_name_y', 'product_name_font_size', 'product_name_font_width',
+        'product_name_max_width', 'product_name_max_lines'
+    ];
+
+    function byId(id) {
+        return document.getElementById(id);
     }
 
-    function bindEvents() {
-        $('#zb-search').on('input', function () {
-            clearTimeout(state.searchTimer);
-            var term = $(this).val();
-            state.searchTimer = setTimeout(function () {
-                loadProducts(term);
-            }, 250);
-        });
-
-        $('#zb-search').on('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (state.results.length) {
-                    selectProduct(state.results[0].variation_id);
-                    $('#zb-results').hide();
-                }
-            }
-        });
-
-        $(document).on('click', '#zb-results button', function () {
-            selectProduct($(this).data('id'));
-            $('#zb-results').hide();
-            $('#zb-search').val('');
-        });
-
-        $(document).on('click', function (e) {
-            if (!$(e.target).closest('.zb-search').length) {
-                $('#zb-results').hide();
-            }
-        });
-
-        $(document).on('click', '#zb-queue button', function () {
-            selectProduct($(this).data('id'), {
-                quantity: $(this).data('qty'),
-                mode: 'individual'
-            });
-        });
-
-        $('#zb-vertical, #zb-qty, #zb-copies, #zb-mode, #zb-preview-row').on('input change', updatePreview);
-        $('.zb-layout, .zb-checks input').on('input change', updatePreview);
-        $('#zb-save').on('click', saveSettings);
-        $('#zb-reset').on('click', function () {
-            applyLayout(defaults);
-            updatePreview();
-            showMessage('Layout reset to the starting alignment. Save layout to keep it.', 'success');
-        });
-        $('#zb-printer').on('change', function () {
-            rememberPrinter($(this).val());
-        });
-        $('#zb-detect').on('click', function () {
-            connectQzTray().then(getPrinters).catch(function (err) {
-                console.error(err);
-                setStatus('QZ Tray is not running. Please start QZ Tray before printing.', 'off');
-                showMessage('QZ Tray is not running. Please start QZ Tray before printing.', 'danger');
-            });
-        });
-        $('#zb-print').on('click', printLabels);
-        $('#zb-test').on('click', testPrint);
-        $('#zb-show-zpl').on('click', function () {
-            var useTest = !state.product || !state.product.printable;
-            fetchZpl(useTest).done(function (res) {
-                $('#zb-zpl').val(res.zpl || '');
-            });
-        });
-        $(window).on('resize', fitPreview);
-    }
-
-    function renderQueue() {
-        var $list = $('#zb-queue');
-        if (!$list.length || !cfg.queue) {
+    function setStatus(message, kind) {
+        var el = byId('zl_status');
+        if (!el) {
             return;
         }
-        $list.empty();
-        cfg.queue.forEach(function (item) {
-            $('<li>').append(
-                $('<button type="button" class="btn btn-default btn-sm">')
-                    .text(item.name + ' · qty ' + item.quantity)
-                    .attr('data-id', item.variation_id)
-                    .attr('data-qty', item.quantity)
-            ).appendTo($list);
-        });
+        el.textContent = message || '';
+        el.classList.toggle('is-on', !!message);
+        el.classList.toggle('is-ok', kind === 'ok');
+        el.classList.toggle('is-error', kind === 'error');
     }
 
-    function loadProducts(term) {
-        term = $.trim(term || '');
-        if (term.length < 1) {
-            $('#zb-results').hide().empty();
-            state.results = [];
-            return;
+    function readError(xhr) {
+        if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+            return xhr.responseJSON.message;
         }
-        if (state.searchXhr) {
-            state.searchXhr.abort();
+        if (xhr && (xhr.status === 401 || xhr.status === 419)) {
+            return 'Your session has expired. Sign in again.';
         }
-        state.searchXhr = $.ajax({
-            url: cfg.urls.search,
-            data: { term: term },
-            dataType: 'json'
-        }).done(function (rows) {
-            state.results = rows || [];
-            var $box = $('#zb-results').empty();
-            if (!state.results.length) {
-                $box.hide();
-                return;
-            }
-            state.results.forEach(function (row) {
-                var code = row.product_code && row.product_code !== row.sku ? ' · ' + row.product_code : '';
-                $('<button type="button">')
-                    .attr('data-id', row.variation_id)
-                    .html('<strong></strong><small></small>')
-                    .find('strong').text(row.name).end()
-                    .find('small').text((row.sku || 'No barcode') + code).end()
-                    .appendTo($box);
+        if (xhr && xhr.status === 403) {
+            return 'You are not allowed to print labels.';
+        }
+        return 'Unable to prepare the label. Check the product and layout, then try again.';
+    }
+
+    function ask(message) {
+        if (typeof swal === 'function') {
+            return swal({
+                title: 'Please confirm',
+                text: message,
+                icon: 'warning',
+                buttons: ['Cancel', 'Continue'],
+                dangerMode: true
             });
-            $box.show();
-        }).fail(function (xhr) {
-            if (xhr.statusText === 'abort') {
-                return;
-            }
-            showMessage('Product search failed. Try again.', 'danger');
-        });
+        }
+        return Promise.resolve(window.confirm(message));
     }
 
-    function selectProduct(variationId, options) {
-        options = options || {};
-        if (!variationId) {
-            return;
-        }
-        $.ajax({
-            url: cfg.urls.product + '/' + variationId,
-            dataType: 'json'
-        }).done(function (res) {
-            if (!res || !res.success || !res.product) {
-                showMessage('Product not found.', 'danger');
-                return;
-            }
-            state.product = res.product;
-            $('#zb-name').val(res.product.name || '');
-            $('#zb-sku').val(res.product.sku || '');
-            $('#zb-barcode').val(res.product.barcode || '');
-            $('#zb-code').val(res.product.product_code || '');
-            $('#zb-price').val(res.product.price_formatted || '');
-            $('#zb-vertical').val(res.product.name || '');
-            if (options.quantity) {
-                $('#zb-qty').val(options.quantity);
-            }
-            if (options.mode) {
-                $('#zb-mode').val(options.mode);
-            }
-            var $err = $('#zb-product-error');
-            if (!res.product.printable) {
-                $err.text(res.product.error || 'Selected product does not have a valid barcode.').show();
-                $('#zb-print').prop('disabled', true);
-            } else {
-                $err.hide().text('');
-                $('#zb-print').prop('disabled', false);
-            }
-            updatePreview();
-        }).fail(function (xhr) {
-            showMessage(ajaxMessage(xhr, 'Could not load that product.'), 'danger');
-        });
+    function num(id) {
+        var node = byId(id);
+        var n = node ? parseFloat(node.value) : 0;
+        return Number.isFinite(n) ? n : 0;
     }
 
-    function clampInt(value, fallback, min, max) {
-        var n = parseFloat(value);
-        if (isNaN(n)) {
-            n = fallback;
-        }
-        n = Math.round(n);
-        return Math.max(min, Math.min(max, n));
+    function text(id) {
+        var node = byId(id);
+        return node ? node.value : '';
     }
 
-    function clampFloat(value, fallback, min, max) {
-        var n = parseFloat(value);
-        if (isNaN(n)) {
-            n = fallback;
+    function setVal(id, value) {
+        var node = byId(id);
+        if (node && value !== undefined && value !== null) {
+            node.value = value;
         }
-        n = Math.max(min, Math.min(max, n));
-        return Math.round(n * 100) / 100;
     }
 
     function readLayout() {
-        var d = defaults;
         return {
-            col1X: clampInt($('#zb-col1').val(), d.col1X, 0, 790),
-            col2X: clampInt($('#zb-col2').val(), d.col2X, 0, 790),
-            col3X: clampInt($('#zb-col3').val(), d.col3X, 0, 790),
-            barcode: {
-                x: clampInt($('#zb-bc-x').val(), d.barcode.x, -50, 400),
-                y: clampInt($('#zb-bc-y').val(), d.barcode.y, 0, 130),
-                width: clampFloat($('#zb-bc-w').val(), d.barcode.width, 1, 10),
-                height: clampInt($('#zb-bc-h').val(), d.barcode.height, 10, 120)
-            },
-            sku: {
-                x: clampInt($('#zb-sku-x').val(), d.sku.x, -50, 400),
-                y: clampInt($('#zb-sku-y').val(), d.sku.y, 0, 130)
-            },
-            price: {
-                x: clampInt($('#zb-price-x').val(), d.price.x, -50, 400),
-                y: clampInt($('#zb-price-y').val(), d.price.y, 0, 130)
-            },
-            vertical: {
-                x: clampInt($('#zb-vert-x').val(), d.vertical.x, -20, 400),
-                y: clampInt($('#zb-vert-y').val(), d.vertical.y, 0, 130)
-            }
+            printer_name: text('zl_printer_name').trim(),
+            printer_dpi: text('zl_printer_dpi'),
+            width: num('zl_width'),
+            height: num('zl_height'),
+            col1_x: num('zl_col1_x'),
+            col2_x: num('zl_col2_x'),
+            col3_x: num('zl_col3_x'),
+            barcode_x: num('zl_barcode_x'),
+            barcode_y: num('zl_barcode_y'),
+            barcode_width: num('zl_barcode_width'),
+            barcode_height: num('zl_barcode_height'),
+            sku_x: num('zl_sku_x'),
+            sku_y: num('zl_sku_y'),
+            sku_font_size: num('zl_sku_font_size'),
+            sku_font_weight: text('zl_sku_font_weight') || 'bold',
+            price_x: num('zl_price_x'),
+            price_y: num('zl_price_y'),
+            price_font_size: num('zl_price_font_size'),
+            vertical_text: text('zl_vertical').trim(),
+            vertical_x: num('zl_vertical_x'),
+            vertical_y: num('zl_vertical_y'),
+            vertical_font_size: num('zl_vertical_font_size'),
+            product_name_x: num('zl_product_name_x'),
+            product_name_y: num('zl_product_name_y'),
+            product_name_font_size: num('zl_product_name_font_size'),
+            product_name_font_width: num('zl_product_name_font_width'),
+            product_name_font_weight: text('zl_product_name_font_weight') || 'bold',
+            product_name_max_width: num('zl_product_name_max_width'),
+            product_name_max_lines: num('zl_product_name_max_lines'),
+            product_name_align: text('zl_product_name_align') || 'center',
+            show_product_name: byId('zl_product_name_show') && byId('zl_product_name_show').checked ? 1 : 0,
+            product_name_wrap: byId('zl_product_name_wrap') && byId('zl_product_name_wrap').checked ? 1 : 0
         };
     }
 
-    function applyLayout(layout) {
-        layout = layout || defaults;
-        $('#zb-col1').val(layout.col1X);
-        $('#zb-col2').val(layout.col2X);
-        $('#zb-col3').val(layout.col3X);
-        $('#zb-bc-x').val(layout.barcode.x);
-        $('#zb-bc-y').val(layout.barcode.y);
-        $('#zb-bc-w').val(layout.barcode.width);
-        $('#zb-bc-h').val(layout.barcode.height);
-        $('#zb-sku-x').val(layout.sku.x);
-        $('#zb-sku-y').val(layout.sku.y);
-        $('#zb-price-x').val(layout.price.x);
-        $('#zb-price-y').val(layout.price.y);
-        $('#zb-vert-x').val(layout.vertical.x);
-        $('#zb-vert-y').val(layout.vertical.y);
-    }
-
-    function loadSettings() {
-        var saved = null;
-        try {
-            saved = JSON.parse(localStorage.getItem(settingsKey) || 'null');
-        } catch (e) {
-            saved = null;
-        }
-        if (!saved || saved.version !== 1 || !saved.layout) {
-            applyLayout(defaults);
+    function setChecked(id, value) {
+        var node = byId(id);
+        if (!node) {
             return;
         }
-        applyLayout(saved.layout);
-        if (saved.printMode) {
-            $('#zb-mode').val(saved.printMode);
-        }
-        if (saved.printer) {
-            $('#zb-printer').data('preferred', saved.printer);
-        }
-        $('#zb-price-prefix').prop('checked', !!saved.pricePrefix);
-        $('#zb-show-barcode').prop('checked', saved.showBarcode !== false);
-        $('#zb-show-sku').prop('checked', saved.showSku !== false);
-        $('#zb-show-price').prop('checked', saved.showPrice !== false);
-        $('#zb-show-vertical').prop('checked', saved.showVertical !== false);
+        node.checked = value === true || value === 1 || value === '1';
     }
 
-    function rememberPrinter(name) {
-        var saved = null;
-        try {
-            saved = JSON.parse(localStorage.getItem(settingsKey) || 'null');
-        } catch (e) {
-            saved = null;
-        }
-        if (!saved || saved.version !== 1) {
-            saved = {
-                version: 1,
-                layout: readLayout(),
-                printMode: $('#zb-mode').val()
-            };
-        }
-        saved.printer = name || '';
-        try {
-            localStorage.setItem(settingsKey, JSON.stringify(saved));
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    function saveSettings() {
-        var payload = {
-            version: 1,
-            printer: $('#zb-printer').val() || $('#zb-printer').data('preferred') || '',
-            printMode: $('#zb-mode').val(),
-            pricePrefix: $('#zb-price-prefix').is(':checked'),
-            showBarcode: $('#zb-show-barcode').is(':checked'),
-            showSku: $('#zb-show-sku').is(':checked'),
-            showPrice: $('#zb-show-price').is(':checked'),
-            showVertical: $('#zb-show-vertical').is(':checked'),
-            layout: readLayout()
-        };
-        try {
-            localStorage.setItem(settingsKey, JSON.stringify(payload));
-            showMessage('Layout saved on this browser.', 'success');
-        } catch (e) {
-            console.error(e);
-            showMessage('Could not save the layout in this browser.', 'danger');
-        }
-    }
-
-    function currentLabel() {
-        var prefix = $('#zb-price-prefix').is(':checked');
-        if (state.product) {
-            var price = state.product.price_formatted || '';
-            return {
-                barcode: state.product.barcode || '',
-                sku: state.product.sku || '',
-                price_text: prefix && price ? ('Price ' + price) : price,
-                vertical_text: $('#zb-vertical').val() || '',
-                show_barcode: $('#zb-show-barcode').is(':checked'),
-                show_sku: $('#zb-show-sku').is(':checked'),
-                show_price: $('#zb-show-price').is(':checked'),
-                show_vertical: $('#zb-show-vertical').is(':checked'),
-                sample: false
-            };
-        }
-        return {
-            barcode: 'TEST123456',
-            sku: 'TEST123456',
-            price_text: 'Price ' + formatMoney(1000),
-            vertical_text: $('#zb-vertical').val() || 'TEST LABEL',
-            show_barcode: $('#zb-show-barcode').is(':checked'),
-            show_sku: $('#zb-show-sku').is(':checked'),
-            show_price: $('#zb-show-price').is(':checked'),
-            show_vertical: $('#zb-show-vertical').is(':checked'),
-            sample: true
-        };
-    }
-
-    function validateLabelData(label) {
-        var barcode = $.trim(label.barcode || '');
-        if (!barcode) {
-            return 'Selected product does not have a valid barcode.';
-        }
-        if (barcode.length > 40) {
-            return 'Barcode is too long for this label. Use 40 characters or fewer.';
-        }
-        if (/[\u0000-\u001F\u007F]/.test(barcode) || !/^[\x20-\x7E]+$/.test(barcode)) {
-            return 'Barcode contains characters that CODE128 cannot print.';
-        }
-        if (label.show_price && !$.trim(label.price_text || '')) {
-            return 'Selected product does not have a selling price.';
-        }
-        return null;
-    }
-
-    function updatePreview() {
-        var layout = readLayout();
-        var label = currentLabel();
-        var bases = [Number(layout.col1X), Number(layout.col2X), Number(layout.col3X)];
-        var slots = previewSlots(label);
-        var error = state.product ? validateLabelData(label) : null;
-        var notes = [];
-
-        if (!state.product) {
-            notes.push('Sample layout. Select a product to preview its barcode and price.');
-        }
-        if (error) {
-            notes.push(error);
-        }
-        if (label.vertical_text && /[^\x20-\x7E]/.test(label.vertical_text)) {
-            notes.push('Vertical text has characters the Zebra built-in font may not print.');
-        }
-        if (Math.abs(layout.barcode.width - Math.round(layout.barcode.width)) > 0.001) {
-            notes.push('Barcode width is sent to Zebra as the ^BY module width. Whole numbers from 1 to 10 are the most reliable.');
-        }
-        $('#zb-layout-note').text(notes.join(' '));
-        $('#zb-job').text(jobSummary());
-        $('#zb-preview-caption').text(
-            (label.sample ? 'Sample · ' : (state.product.name + ' · ')) + '800 × 140 dots · 203 DPI'
-        );
-
-        var showRowPicker = $('#zb-mode').val() === 'individual' && readInt('zb-qty', 1) > 3;
-        $('#zb-preview-row-wrap').toggle(showRowPicker);
-
-        if (cfg.debug && $('#zb-zpl').length) {
-            $('#zb-zpl').val(generateZpl(expandJob(label), layout));
-        }
-
-        $('#zb-stage .zb-sticker').each(function (index) {
-            var $sticker = $(this);
-            var next = index < 2 ? bases[index + 1] : PRINT_WIDTH;
-            var width = Math.max(40, next - bases[index]);
-            $sticker.css({ left: bases[index] + 'px', width: width + 'px' });
-            var slot = slots[index];
-            $sticker.toggleClass('is-empty', !slot);
-            paintSticker($sticker, slot, layout, error);
-        });
-
-        fitPreview();
-    }
-
-    function paintSticker($sticker, slot, layout, error) {
-        var $bc = $sticker.find('.zb-bc');
-        var $sku = $sticker.find('.zb-sku');
-        var $price = $sticker.find('.zb-price');
-        var $vert = $sticker.find('.zb-vert');
-        $bc.hide().empty();
-        $sku.hide().text('');
-        $price.hide().text('');
-        $vert.hide().text('');
-        if (!slot) {
-            return;
-        }
-        if (slot.show_barcode && slot.barcode && !error) {
-            try {
-                $bc.css({ left: layout.barcode.x + 'px', top: layout.barcode.y + 'px', display: 'block' });
-                JsBarcode($bc.get(0), slot.barcode, {
-                    format: 'CODE128',
-                    width: Number(layout.barcode.width),
-                    height: Number(layout.barcode.height),
-                    displayValue: false,
-                    margin: 0
-                });
-            } catch (e) {
-                console.error(e);
-                $bc.hide();
-            }
-        }
-        if (slot.show_sku && slot.barcode) {
-            $sku.text(slot.sku || slot.barcode).css({
-                left: layout.sku.x + 'px',
-                top: layout.sku.y + 'px'
-            }).show();
-        }
-        if (slot.show_price && slot.price_text) {
-            $price.text(slot.price_text).css({
-                left: layout.price.x + 'px',
-                top: layout.price.y + 'px'
-            }).show();
-        }
-        if (slot.show_vertical && slot.vertical_text) {
-            $vert.text(slot.vertical_text).css({
-                left: layout.vertical.x + 'px',
-                top: layout.vertical.y + 'px'
-            }).show();
-        }
-    }
-
-    function previewSlots(label) {
-        var qty = readInt('zb-qty', 1);
-        var mode = $('#zb-mode').val();
-        if (mode !== 'individual') {
-            return [label, label, label];
-        }
-        var count = Math.min(3, qty);
-        if ($('#zb-preview-row').val() === 'last' && qty > 3) {
-            count = qty % 3 === 0 ? 3 : qty % 3;
-        }
-        var slots = [null, null, null];
-        for (var i = 0; i < count; i++) {
-            slots[i] = label;
-        }
-        return slots;
-    }
-
-    function jobSummary() {
-        var qty = readInt('zb-qty', 1);
-        var copies = readInt('zb-copies', 1);
-        var mode = $('#zb-mode').val();
-        var labels = (mode === 'individual' ? qty : qty * 3) * copies;
-        var rows = (mode === 'individual' ? Math.ceil(qty / 3) : qty) * copies;
-        var text = labels + ' label' + (labels === 1 ? '' : 's') + ' · ' + rows + ' row' + (rows === 1 ? '' : 's');
-        if (mode === 'individual' && qty % 3 !== 0) {
-            text += ' · last row prints ' + (qty % 3) + ' label' + (qty % 3 === 1 ? '' : 's');
-        } else if (mode === 'row') {
-            text += ' · 3 labels on every row';
-        }
-        return text;
-    }
-
-    function fitPreview() {
-        var $scroll = $('.zb-preview-scroll');
-        var $stage = $('#zb-stage');
-        var $host = $('#zb-scale-host');
-        if (!$stage.length || !$scroll.length) {
-            return;
-        }
-        var scale = Math.min(1, Math.max(0.35, ($scroll.innerWidth() - 24) / PRINT_WIDTH));
-        $stage.css('transform', 'scale(' + scale + ')');
-        $host.css({ width: Math.ceil(PRINT_WIDTH * scale) + 'px', height: Math.ceil(PRINT_LENGTH * scale) + 'px' });
-    }
-
-    function connectQzTray() {
-        if (typeof qz === 'undefined') {
-            return Promise.reject(new Error('QZ Tray library failed to load.'));
-        }
-        if (qz.websocket.isActive()) {
-            setStatus('QZ Tray connected', 'ok');
-            return Promise.resolve(true);
-        }
-        if (state.connectPromise) {
-            return state.connectPromise;
-        }
-        setStatus('Connecting to QZ Tray…', 'warn');
-        state.connectPromise = qz.websocket.connect().then(function () {
-            state.connectPromise = null;
-            setStatus('QZ Tray connected', 'ok');
-            return true;
-        }).catch(function (err) {
-            state.connectPromise = null;
-            setStatus('QZ Tray is not running. Please start QZ Tray before printing.', 'off');
-            throw err;
-        });
-        return state.connectPromise;
-    }
-
-    function getPrinters() {
-        return connectQzTray().then(function () {
-            return qz.printers.find();
-        }).then(function (list) {
-            var names = Array.isArray(list) ? list : (list ? [list] : []);
-            var preferred = $('#zb-printer').data('preferred') || $('#zb-printer').val();
-            var $select = $('#zb-printer').empty();
-            $('<option value="">Select a printer</option>').appendTo($select);
-            names.forEach(function (name) {
-                $('<option>').val(name).text(name).appendTo($select);
-            });
-            var match = preferred;
-            if (!match || names.indexOf(match) === -1) {
-                match = names.filter(function (name) {
-                    return /ZD230|ZDesigner/i.test(name);
-                })[0] || '';
-            }
-            if (match) {
-                $select.val(match);
-                rememberPrinter(match);
-            }
-            if (!names.length) {
-                showMessage('No printers were reported by QZ Tray.', 'warning');
-            }
-            return names;
-        });
-    }
-
-    function printLabels() {
-        if (!state.product || !state.product.printable) {
-            showMessage(state.product && state.product.error ? state.product.error : 'Select a product with a valid barcode.', 'danger');
-            return;
-        }
-        var error = validateLabelData(currentLabel());
-        if (error) {
-            showMessage(error, 'danger');
-            return;
-        }
-        if (!$('#zb-printer').val()) {
-            showMessage('Select a printer before printing.', 'danger');
-            return;
-        }
-        var $btn = $('#zb-print').prop('disabled', true);
-        fetchZpl(false).done(function (res) {
-            sendToPrinter(res.zpl).then(function () {
-                showMessage('Labels sent to the printer.', 'success');
-            }).catch(function (err) {
-                showMessage(friendlyPrintError(err), 'danger');
-            }).then(function () {
-                $btn.prop('disabled', false);
-            });
-        }).fail(function () {
-            $btn.prop('disabled', false);
-        });
-    }
-
-    function testPrint() {
-        if (!$('#zb-printer').val()) {
-            showMessage('Select a printer before printing.', 'danger');
-            return;
-        }
-        var $btn = $('#zb-test').prop('disabled', true);
-        fetchZpl(true).done(function (res) {
-            sendToPrinter(res.zpl).then(function () {
-                showMessage('Test label sent to the printer.', 'success');
-            }).catch(function (err) {
-                showMessage(friendlyPrintError(err), 'danger');
-            }).then(function () {
-                $btn.prop('disabled', false);
-            });
-        }).fail(function () {
-            $btn.prop('disabled', false);
-        });
-    }
-
-    function fetchZpl(test) {
-        var label = currentLabel();
-        if (!test) {
-            var error = validateLabelData(label);
-            if (error) {
-                showMessage(error, 'danger');
-                return $.Deferred().reject().promise();
-            }
-        }
-        return $.ajax({
-            url: test ? cfg.urls.test : cfg.urls.print,
-            method: 'POST',
-            contentType: 'application/json',
-            dataType: 'json',
-            data: JSON.stringify({
-                variation_id: state.product ? state.product.variation_id : null,
-                quantity: readInt('zb-qty', 1),
-                copies: readInt('zb-copies', 1),
-                print_mode: $('#zb-mode').val() === 'individual' ? 'individual' : 'row',
-                vertical_text: $('#zb-vertical').val() || '',
-                show_barcode: $('#zb-show-barcode').is(':checked'),
-                show_sku: $('#zb-show-sku').is(':checked'),
-                show_price: $('#zb-show-price').is(':checked'),
-                show_vertical: $('#zb-show-vertical').is(':checked'),
-                price_prefix: $('#zb-price-prefix').is(':checked'),
-                layout: readLayout()
-            })
-        }).fail(function (xhr) {
-            showMessage(ajaxMessage(xhr, 'Could not build the label.'), 'danger');
-        });
-    }
-
-    function sendToPrinter(zpl) {
-        var printer = $('#zb-printer').val();
-        if (!printer) {
-            return Promise.reject(new Error('Printer not selected'));
-        }
-        if (!zpl) {
-            return Promise.reject(new Error('Empty ZPL'));
-        }
-        return connectQzTray().then(function () {
-            var config = qz.configs.create(printer);
-            return qz.print(config, [{
-                type: 'raw',
-                format: 'command',
-                flavor: 'plain',
-                data: zpl,
-                options: { language: 'ZPL' }
-            }]);
-        });
-    }
-
-    function friendlyPrintError(err) {
-        console.error(err);
-        var raw = err && err.message ? err.message : '';
-        if (/websocket|establish|connection|not running/i.test(raw)) {
-            setStatus('QZ Tray is not running. Please start QZ Tray before printing.', 'off');
-            return 'QZ Tray is not running. Please start QZ Tray before printing.';
-        }
-        if (/printer/i.test(raw)) {
-            return 'Printer is not available. Select a printer and try again.';
-        }
-        return 'Could not print the labels. Check QZ Tray and the selected printer.';
-    }
-
-    function expandJob(label) {
-        var qty = readInt('zb-qty', 1);
-        var copies = readInt('zb-copies', 1);
-        var mode = $('#zb-mode').val() === 'individual' ? 'individual' : 'row';
-        var rows = [];
-        if (mode === 'row') {
-            for (var r = 0; r < qty; r++) {
-                rows.push([label, label, label]);
-            }
-        } else {
-            var remaining = qty;
-            while (remaining > 0) {
-                var row = [null, null, null];
-                for (var c = 0; c < 3 && remaining > 0; c++) {
-                    row[c] = label;
-                    remaining--;
-                }
-                rows.push(row);
-            }
-        }
-        var job = [];
-        for (var copy = 0; copy < copies; copy++) {
-            rows.forEach(function (row) {
-                job.push(row);
-            });
-        }
-        return job;
-    }
-
-    function generateZpl(rows, layout) {
-        var blocks = ['~SD25'];
-        rows.forEach(function (slots) {
-            blocks.push([
-                '^XA',
-                '^PW800',
-                '^LL140',
-                '^LH0,0',
-                generateRow(slots, layout),
-                '^XZ'
-            ].join('\n'));
-        });
-        return blocks.join('\n') + '\n';
-    }
-
-    function generateRow(slots, layout) {
-        var bases = [layout.col1X, layout.col2X, layout.col3X];
-        var parts = [];
-        for (var i = 0; i < 3; i++) {
-            if (!slots[i]) {
-                continue;
-            }
-            parts.push(generateLabel(bases[i], slots[i], layout));
-        }
-        return parts.join('\n');
-    }
-
-    function generateLabel(baseX, label, layout) {
-        var lines = [];
-        var barcode = sanitizeText(label.barcode || label.sku || '', 40);
-        baseX = Math.round(Number(baseX) || 0);
-        if (label.show_barcode && barcode) {
-            var height = Math.round(layout.barcode.height);
-            lines.push('^FO' + (baseX + Math.round(layout.barcode.x)) + ',' + Math.round(layout.barcode.y));
-            lines.push('^BY' + formatModule(layout.barcode.width) + ',2,' + height);
-            lines.push('^BCN,' + height + ',N,N,N');
-            lines.push(fieldData(barcode));
-        }
-        if (label.show_sku && barcode) {
-            lines.push('^FO' + (baseX + Math.round(layout.sku.x)) + ',' + Math.round(layout.sku.y));
-            lines.push('^A0N,18,14');
-            lines.push(fieldData(barcode));
-        }
-        var price = sanitizeText(label.price_text || '', 40);
-        if (label.show_price && price) {
-            lines.push('^FO' + (baseX + Math.round(layout.price.x)) + ',' + Math.round(layout.price.y));
-            lines.push('^A0N,22,16');
-            lines.push(fieldData(price));
-        }
-        var vertical = sanitizeText(label.vertical_text || '', 80);
-        if (label.show_vertical && vertical) {
-            lines.push('^FO' + (baseX + Math.round(layout.vertical.x)) + ',' + Math.round(layout.vertical.y));
-            lines.push('^A0B,18,14');
-            lines.push(fieldData(vertical));
-        }
-        return lines.join('\n');
-    }
-
-    function fieldData(text) {
-        var needsHex = false;
-        var encoded = '';
-        for (var i = 0; i < text.length; i++) {
-            var ch = text.charAt(i);
-            var ord = text.charCodeAt(i);
-            if (ch === '^' || ch === '~' || ch === '\\' || ord < 32 || ord > 126) {
-                needsHex = true;
-                encoded += '\\' + ord.toString(16).toUpperCase().padStart(2, '0');
-            } else {
-                encoded += ch;
-            }
-        }
-        if (needsHex) {
-            return '^FH\\\n^FD' + encoded + '^FS';
-        }
-        return '^FD' + encoded + '^FS';
-    }
-
-    function formatModule(width) {
-        width = Math.max(1, Math.min(10, Number(width) || 1));
-        var rounded = Math.round(width);
-        if (Math.abs(width - rounded) < 0.001) {
-            return String(rounded);
-        }
-        return String(Math.round(width * 100) / 100);
-    }
-
-    function sanitizeText(text, max) {
-        text = String(text || '').replace(/[\r\n\t]/g, ' ').replace(/[\u0000-\u001F\u007F]/g, '');
-        text = text.replace(/\s+/g, ' ').trim();
-        return text.length > max ? text.substring(0, max) : text;
-    }
-
-    function formatMoney(amount) {
-        var precision = parseInt($('#__precision').val(), 10);
-        if (isNaN(precision)) {
-            precision = 2;
-        }
-        var thousand = $('#__thousand').val();
-        if (thousand === undefined || thousand === null) {
-            thousand = ',';
-        }
-        var decimal = $('#__decimal').val() || '.';
-        var symbol = $('#__symbol').val() || '';
-        var placement = $('#__symbol_placement').val();
-        var fixed = Math.abs(Number(amount) || 0).toFixed(precision);
-        var parts = fixed.split('.');
-        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousand);
-        var number = parts.join(decimal);
-        if (!symbol) {
-            return printerText(number);
-        }
-        var formatted = placement === 'after' ? (number + ' ' + symbol) : (symbol + ' ' + number);
-        return printerText(formatted);
-    }
-
-    function printerText(text) {
-        return String(text || '')
-            .replace(/₨/g, 'Rs.')
-            .replace(/₹/g, 'Rs.')
-            .replace(/€/g, 'EUR ')
-            .replace(/£/g, 'GBP ')
-            .replace(/¥/g, 'JPY ')
-            .replace(/[^\x20-\x7E]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
-
-    function readInt(id, fallback) {
-        var value = parseInt($('#' + id).val(), 10);
-        if (isNaN(value) || value < 1) {
-            return fallback;
+    function profileValue(profile, key) {
+        var value = profile ? profile[key] : undefined;
+        if (value === undefined || value === null || value === '') {
+            value = (boot.defaults || {})[key];
         }
         return value;
     }
 
-    function setStatus(text, mode) {
-        var $el = $('#zb-status');
-        $el.removeClass('is-ok is-warn').addClass(mode === 'ok' ? 'is-ok' : (mode === 'warn' ? 'is-warn' : ''));
-        $el.find('span').text(text);
-    }
-
-    function showMessage(text, kind) {
-        var $alert = $('#zb-alert');
-        $alert.removeClass('alert-success alert-danger alert-warning')
-            .addClass(kind === 'success' ? 'alert-success' : (kind === 'warning' ? 'alert-warning' : 'alert-danger'))
-            .text(text)
-            .show();
-    }
-
-    function ajaxMessage(xhr, fallback) {
-        var body = xhr.responseJSON || {};
-        if (body.msg) {
-            return body.msg;
+    function applyProfile(profile, keepVertical) {
+        if (!profile) {
+            return;
         }
-        if (body.message && xhr.status === 422 && body.errors) {
-            var key = Object.keys(body.errors)[0];
-            if (key && body.errors[key] && body.errors[key][0]) {
-                return body.errors[key][0];
+        state.profileId = profile.id || null;
+        setVal('zl_profile_name', profile.name || '');
+        setVal('zl_printer_name', profile.printer_name);
+        setVal('zl_printer_dpi', profile.printer_dpi);
+        setVal('zl_width', profile.width);
+        setVal('zl_height', profile.height);
+        alignKeys.forEach(function (key) {
+            setVal('zl_' + key, profileValue(profile, key));
+        });
+        setVal('zl_product_name_font_weight', profileValue(profile, 'product_name_font_weight') || 'bold');
+        setVal('zl_product_name_align', profileValue(profile, 'product_name_align') || 'center');
+        var showName = profile.show_product_name;
+        if (showName === undefined || showName === null) {
+            showName = profileValue(boot.defaults || {}, 'show_product_name');
+            if (showName === undefined || showName === null) {
+                showName = true;
             }
         }
-        console.error(xhr.responseText || xhr.statusText);
-        return fallback;
+        setChecked('zl_product_name_show', showName);
+        setChecked('zl_product_name_wrap', profileValue(profile, 'product_name_wrap'));
+        if (!keepVertical && profile.vertical_text) {
+            setVal('zl_vertical', profile.vertical_text);
+        }
+        fillProfiles();
+        updateQuantitySummary();
+        updatePreview();
     }
 
-    window.VkBarcodeLabels = {
-        initialize: initialize,
-        loadSettings: loadSettings,
-        saveSettings: saveSettings,
-        loadProducts: loadProducts,
-        selectProduct: selectProduct,
-        updatePreview: updatePreview,
-        generateZpl: generateZpl,
-        connectQzTray: connectQzTray,
-        getPrinters: getPrinters,
-        printLabels: printLabels,
-        testPrint: testPrint,
-        validateLabelData: validateLabelData
-    };
+    function fillProfiles() {
+        var sel = byId('zl_profile');
+        if (!sel) {
+            return;
+        }
+        var current = state.profileId ? String(state.profileId) : sel.value;
+        sel.innerHTML = '';
+        state.profiles.forEach(function (profile) {
+            var opt = document.createElement('option');
+            opt.value = profile.id;
+            opt.textContent = profile.name + (profile.is_default ? ' (default)' : '');
+            if (String(profile.id) === String(current)) {
+                opt.selected = true;
+            }
+            sel.appendChild(opt);
+        });
+    }
 
-    $(initialize);
-})(jQuery);
+    function renderQueue() {
+        var host = byId('zl_queue');
+        if (!host) {
+            return;
+        }
+        host.innerHTML = '';
+        (boot.queue || []).forEach(function (item) {
+            if (!item.variation_id) {
+                return;
+            }
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = item.name || ('Product ' + item.variation_id);
+            btn.addEventListener('click', function () {
+                loadProduct(item.variation_id, item);
+            });
+            host.appendChild(btn);
+        });
+    }
+
+    function renderProduct(setVertical) {
+        var product = state.product;
+        byId('zl_product_name').textContent = product ? product.name : 'No product selected';
+        byId('zl_product_sku').textContent = product && product.barcode ? product.barcode : '—';
+        byId('zl_product_price').textContent = product && product.price ? product.price : '—';
+        var bits = [];
+        if (product) {
+            bits.push('ID ' + product.product_id);
+            if (product.lot_number) {
+                bits.push('Batch ' + product.lot_number);
+            }
+            if (product.exp_date) {
+                bits.push('Expiry ' + product.exp_date);
+            }
+            if (product.purchase_quantity) {
+                bits.push('Purchase qty ' + product.purchase_quantity);
+            }
+        }
+        byId('zl_product_meta').textContent = bits.length ? bits.join(' · ') : 'Search to load a product from VKPOS.';
+        if (product && setVertical) {
+            setVal('zl_vertical', (product.name || '').slice(0, 80));
+        }
+        byId('zl_product_card').classList.toggle('is-missing', !!(product && product.barcode_missing));
+    }
+
+    function loadProduct(variationId, extras, setVertical) {
+        if (!variationId || String(variationId) === '0') {
+            setStatus('Select the product variation, not the group heading.', 'error');
+            return;
+        }
+        $.get(boot.urls.product + '/' + encodeURIComponent(variationId), {
+            price_group_id: text('zl_price_group')
+        }).done(function (res) {
+            if (!res || !res.success || !res.product) {
+                setStatus((res && res.message) || 'The selected product could not be loaded.', 'error');
+                return;
+            }
+            state.product = res.product;
+            state.barcodeKey = '';
+            if (extras) {
+                state.product.lot_number = extras.lot_number || null;
+                state.product.exp_date = extras.exp_date || null;
+                state.product.purchase_quantity = extras.quantity || null;
+            }
+            renderProduct(setVertical !== false);
+            updatePreview();
+            setStatus(state.product.barcode_missing ? 'Barcode is missing for this product.' : 'Product loaded from VKPOS.', state.product.barcode_missing ? 'error' : 'ok');
+        }).fail(function (xhr) {
+            setStatus(readError(xhr), 'error');
+        });
+    }
+
+    function updateQuantitySummary() {
+        var el = byId('zl_qty_summary');
+        var qty = parseInt(text('zl_qty'), 10);
+        if (!el) {
+            return;
+        }
+        if (!Number.isInteger(qty) || qty < 1 || qty > 100 || String(text('zl_qty')).indexOf('.') !== -1) {
+            el.textContent = 'Enter a whole number of rows from 1 to 100. Each row prints 3 labels.';
+            el.classList.add('is-warn');
+            return;
+        }
+        el.classList.remove('is-warn');
+        var labels = qty * 3;
+        el.textContent = qty + (qty === 1 ? ' row' : ' rows') + ' × 3 labels = ' + labels + ' physical labels';
+    }
+
+    function charsOf(value) {
+        return Array.from(String(value || ''));
+    }
+
+    function displayProductName(name, layout) {
+        var list = charsOf(name).slice(0, 120);
+        name = list.join('');
+        if (layout.product_name_wrap) {
+            return name;
+        }
+        var fontWidth = Math.max(1, layout.product_name_font_width || layout.product_name_font_size || 20);
+        var maxChars = Math.max(1, Math.floor((layout.product_name_max_width || 220) / fontWidth));
+        if (list.length <= maxChars) {
+            return name;
+        }
+        if (maxChars <= 3) {
+            return list.slice(0, maxChars).join('');
+        }
+        return list.slice(0, maxChars - 3).join('').replace(/\s+$/, '') + '...';
+    }
+
+    function namePlacement(base, layout) {
+        var size = layout.product_name_font_size || 20;
+        var fontWidth = layout.product_name_font_width || size;
+        var ratio = size > 0 ? fontWidth / size : 1;
+        if (!Number.isFinite(ratio) || ratio <= 0) {
+            ratio = 1;
+        }
+        var maxWidth = layout.product_name_max_width || 220;
+        var layoutWidth = maxWidth / ratio;
+        var align = layout.product_name_align || 'center';
+        var left = base + layout.product_name_x;
+        var origin = 'left top';
+        if (align === 'center') {
+            origin = 'center top';
+            left -= (layoutWidth - maxWidth) / 2;
+        } else if (align === 'right') {
+            origin = 'right top';
+            left += maxWidth - layoutWidth;
+        }
+        return { left: left, width: layoutWidth, origin: origin, ratio: ratio, maxWidth: maxWidth };
+    }
+
+    function estimateText(value, size) {
+        return Math.max(size, String(value || '').length * size * 0.55);
+    }
+
+    function estimateBarcodeWidth(value, module) {
+        var chars = Math.max(1, String(value || '').length);
+        return (11 * chars + 35) * (module || 1);
+    }
+
+    function outside(x, y, w, h, col, width, height) {
+        var slice = Math.floor(width / 3);
+        var left = col * slice;
+        var right = col === 2 ? width : (col + 1) * slice;
+        return x < left - 1 || y < -1 || (x + w) > right + 1 || (y + h) > height + 1;
+    }
+
+    function showWarnings(messages) {
+        var box = byId('zl_warnings');
+        if (!box) {
+            return;
+        }
+        box.innerHTML = '';
+        if (!messages.length) {
+            box.hidden = true;
+            return;
+        }
+        messages.forEach(function (message) {
+            var p = document.createElement('p');
+            p.textContent = message;
+            box.appendChild(p);
+        });
+        var note = document.createElement('p');
+        note.textContent = 'You can still print if you are testing this alignment.';
+        box.appendChild(note);
+        box.hidden = false;
+    }
+
+    function drawGuides(layout) {
+        var canvas = byId('zl_canvas');
+        var width = layout.width;
+        var height = layout.height;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        canvas.classList.toggle('is-coords', byId('zl_show_coords').checked);
+        canvas.classList.toggle('is-bounds-off', !byId('zl_show_bounds').checked);
+
+        var grid = document.createElement('div');
+        grid.className = 'zl-grid';
+        grid.hidden = !byId('zl_show_grid').checked;
+        var x;
+        for (x = 0; x <= width; x += 50) {
+            var v = document.createElement('div');
+            v.className = 'zl-grid__v';
+            v.style.left = x + 'px';
+            var vl = document.createElement('span');
+            vl.textContent = String(x);
+            v.appendChild(vl);
+            grid.appendChild(v);
+        }
+        var y;
+        for (y = 0; y <= height; y += 20) {
+            var h = document.createElement('div');
+            h.className = 'zl-grid__h';
+            h.style.top = y + 'px';
+            var hl = document.createElement('span');
+            hl.textContent = String(y);
+            h.appendChild(hl);
+            grid.appendChild(h);
+        }
+
+        var bounds = document.createElement('div');
+        var slice = Math.floor(width / 3);
+        var i;
+        for (i = 0; i < 3; i++) {
+            var bound = document.createElement('div');
+            bound.className = 'zl-bound';
+            bound.style.left = (i * slice) + 'px';
+            bound.style.width = (i === 2 ? width - (i * slice) : slice) + 'px';
+            var tag = document.createElement('div');
+            tag.className = 'zl-bound__tag';
+            tag.textContent = 'LABEL ' + (i + 1);
+            bound.appendChild(tag);
+            bounds.appendChild(bound);
+        }
+
+        return { grid: grid, bounds: bounds };
+    }
+
+    function updatePreview() {
+        var canvas = byId('zl_canvas');
+        if (!canvas) {
+            return;
+        }
+        var layout = readLayout();
+        var sku = state.product && state.product.barcode ? state.product.barcode : '';
+        var price = state.product && state.product.price ? state.product.price : '';
+        var productName = state.product && state.product.name ? state.product.name : '';
+        var showName = !!layout.show_product_name && productName !== '';
+        var nameText = showName ? displayProductName(productName, layout) : '';
+        var nameLines = layout.product_name_wrap ? Math.max(1, layout.product_name_max_lines || 1) : 1;
+        var vertical = layout.vertical_text;
+        var guides = drawGuides(layout);
+        var elements = document.createElement('div');
+        var bases = [layout.col1_x, layout.col2_x, layout.col3_x];
+        var barcodeKey = sku + '|' + layout.barcode_width + '|' + layout.barcode_height;
+        var redrawBarcode = barcodeKey !== state.barcodeKey;
+        state.barcodeKey = barcodeKey;
+
+        bases.forEach(function (base, index) {
+            var bc = document.createElement('img');
+            bc.className = 'zl-el';
+            bc.alt = '';
+            bc.style.left = (base + layout.barcode_x) + 'px';
+            bc.style.top = layout.barcode_y + 'px';
+            var previous = canvas.querySelector('[data-bc="' + index + '"]');
+            if (!redrawBarcode && previous && previous.getAttribute('src')) {
+                bc.src = previous.getAttribute('src');
+            } else if (sku && typeof JsBarcode === 'function') {
+                try {
+                    JsBarcode(bc, sku, {
+                        format: 'CODE128',
+                        width: (parseFloat(layout.barcode_width) || 1.5) + 0.1,
+                        height: layout.barcode_height,
+                        displayValue: false,
+                        margin: 0
+                    });
+                } catch (e) {
+                    bc.removeAttribute('src');
+                }
+            }
+            bc.setAttribute('data-bc', String(index));
+
+            var nameEl = document.createElement('div');
+            nameEl.className = 'zl-el zl-name p-element p-product-name' + (layout.product_name_wrap ? ' is-wrap' : '');
+            nameEl.id = 'prev-product-name-' + index;
+            if (showName) {
+                var place = namePlacement(base, layout);
+                nameEl.textContent = nameText;
+                nameEl.style.left = place.left + 'px';
+                nameEl.style.top = layout.product_name_y + 'px';
+                nameEl.style.width = place.width + 'px';
+                nameEl.style.maxHeight = (layout.product_name_font_size * nameLines) + 'px';
+                nameEl.style.fontSize = layout.product_name_font_size + 'px';
+                nameEl.style.lineHeight = layout.product_name_font_size + 'px';
+                nameEl.style.fontWeight = layout.product_name_font_weight === 'normal' ? '400' : '700';
+                nameEl.style.textAlign = layout.product_name_align || 'center';
+                nameEl.style.setProperty('--zl-lines', String(nameLines));
+                if (place.ratio !== 1) {
+                    nameEl.style.transform = 'scaleX(' + place.ratio + ')';
+                    nameEl.style.transformOrigin = place.origin;
+                }
+            }
+
+            var skuEl = document.createElement('div');
+            skuEl.className = 'zl-el';
+            skuEl.textContent = sku;
+            skuEl.style.left = (base + layout.sku_x) + 'px';
+            skuEl.style.top = layout.sku_y + 'px';
+            skuEl.style.fontSize = layout.sku_font_size + 'px';
+            skuEl.style.fontWeight = layout.sku_font_weight === 'normal' ? '400' : '700';
+
+            var priceEl = document.createElement('div');
+            priceEl.className = 'zl-el';
+            priceEl.textContent = price;
+            priceEl.style.left = (base + layout.price_x) + 'px';
+            priceEl.style.top = layout.price_y + 'px';
+            priceEl.style.fontSize = layout.price_font_size + 'px';
+            priceEl.style.fontWeight = '700';
+
+            var vertEl = document.createElement('div');
+            vertEl.className = 'zl-el zl-vert';
+            vertEl.textContent = vertical;
+            vertEl.style.left = (base + layout.vertical_x) + 'px';
+            vertEl.style.top = layout.vertical_y + 'px';
+            vertEl.style.fontSize = layout.vertical_font_size + 'px';
+
+            var coord = document.createElement('span');
+            coord.className = 'zl-coord';
+            coord.style.left = (base + layout.barcode_x) + 'px';
+            coord.style.top = Math.max(0, layout.barcode_y - 10) + 'px';
+            coord.textContent = 'BC ' + (base + layout.barcode_x) + ',' + layout.barcode_y
+                + '  NAME ' + (base + layout.product_name_x) + ',' + layout.product_name_y
+                + '  SKU ' + (base + layout.sku_x) + ',' + layout.sku_y
+                + '  PRICE ' + (base + layout.price_x) + ',' + layout.price_y;
+
+            elements.appendChild(bc);
+            if (showName) {
+                elements.appendChild(nameEl);
+            }
+            elements.appendChild(skuEl);
+            elements.appendChild(priceEl);
+            elements.appendChild(vertEl);
+            elements.appendChild(coord);
+        });
+
+        canvas.innerHTML = '';
+        canvas.appendChild(guides.grid);
+        canvas.appendChild(guides.bounds);
+        canvas.appendChild(elements);
+
+        var warnings = [];
+        var bcW = estimateBarcodeWidth(sku, layout.barcode_width);
+        var bcBad = false;
+        var nameBad = false;
+        var skuBad = false;
+        var priceBad = false;
+        var vertBad = false;
+        bases.forEach(function (base, index) {
+            if (sku && outside(base + layout.barcode_x, layout.barcode_y, bcW, layout.barcode_height, index, layout.width, layout.height)) {
+                bcBad = true;
+            }
+            if (showName && outside(base + layout.product_name_x, layout.product_name_y, layout.product_name_max_width, layout.product_name_font_size * nameLines, index, layout.width, layout.height)) {
+                nameBad = true;
+            }
+            if (sku && outside(base + layout.sku_x, layout.sku_y, estimateText(sku, layout.sku_font_size), layout.sku_font_size, index, layout.width, layout.height)) {
+                skuBad = true;
+            }
+            if (price && outside(base + layout.price_x, layout.price_y, estimateText(price, layout.price_font_size), layout.price_font_size, index, layout.width, layout.height)) {
+                priceBad = true;
+            }
+            if (vertical && outside(base + layout.vertical_x, layout.vertical_y, layout.vertical_font_size, estimateText(vertical, layout.vertical_font_size), index, layout.width, layout.height)) {
+                vertBad = true;
+            }
+        });
+        if (bcBad) {
+            warnings.push('Barcode exceeds label boundary.');
+        }
+        if (nameBad) {
+            warnings.push('Product name exceeds label boundary.');
+        }
+        if (skuBad) {
+            warnings.push('SKU exceeds label boundary.');
+        }
+        if (priceBad) {
+            warnings.push('Price exceeds label boundary.');
+        }
+        if (vertBad) {
+            warnings.push('Vertical text exceeds label boundary.');
+        }
+        showWarnings(warnings);
+        fitPreview();
+    }
+
+    function fitPreview() {
+        var stage = byId('zl_stage');
+        var scaler = byId('zl_scaler');
+        var canvas = byId('zl_canvas');
+        if (!stage || !scaler || !canvas) {
+            return;
+        }
+        var width = Math.max(200, num('zl_width') || 800);
+        var height = Math.max(40, num('zl_height') || 140);
+        var scale = Math.min(1, Math.max(280, stage.clientWidth - 8) / width);
+        canvas.style.transform = 'scale(' + scale + ')';
+        scaler.style.width = Math.ceil(width * scale) + 'px';
+        scaler.style.height = Math.ceil(height * scale) + 'px';
+    }
+
+    function openPrintPreview() {
+        updatePreview();
+        var canvas = byId('zl_canvas');
+        if (!canvas) {
+            setStatus('The label preview is not ready yet.', 'error');
+            return;
+        }
+        var clone = canvas.cloneNode(true);
+        clone.querySelectorAll('.zl-grid, .zl-bound, .zl-coord').forEach(function (node) {
+            node.remove();
+        });
+        clone.style.transform = 'none';
+        clone.classList.remove('is-coords');
+        clone.style.border = 'none';
+        var layer = byId('zl_print_layer');
+        if (!layer) {
+            layer = document.createElement('div');
+            layer.id = 'zl_print_layer';
+            layer.className = 'zl-print-layer';
+            layer.hidden = true;
+            document.body.appendChild(layer);
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    closePrintPreview();
+                }
+            });
+            layer.addEventListener('click', function (event) {
+                if (event.target === layer) {
+                    closePrintPreview();
+                }
+            });
+        }
+        layer.innerHTML = '';
+        layer.appendChild(clone);
+        layer.hidden = false;
+        document.body.classList.add('zl-print-open');
+    }
+
+    function closePrintPreview() {
+        var layer = byId('zl_print_layer');
+        if (!layer || layer.hidden) {
+            return;
+        }
+        layer.hidden = true;
+        layer.innerHTML = '';
+        document.body.classList.remove('zl-print-open');
+    }
+
+    function postProfile(url, data) {
+        return $.ajax({ url: url, method: 'POST', data: data });
+    }
+
+    function acceptProfiles(res) {
+        state.profiles = res.profiles || [];
+        if (res.profile) {
+            state.profileId = res.profile.id;
+            setVal('zl_profile_name', res.profile.name || '');
+        }
+        fillProfiles();
+        setStatus(res.message || 'Saved.', 'ok');
+        if (window.toastr) {
+            toastr.success(res.message || 'Saved.');
+        }
+    }
+
+    function profileName() {
+        return text('zl_profile_name').trim();
+    }
+
+    function saveProfile() {
+        var name = profileName();
+        if (!name) {
+            setStatus('Enter a profile name up to 80 characters.', 'error');
+            return;
+        }
+        var payload = { name: name, layout: readLayout() };
+        var url = state.profileId ? (boot.urls.profiles + '/' + state.profileId) : boot.urls.profiles;
+        postProfile(url, payload).done(acceptProfiles).fail(function (xhr) {
+            setStatus(readError(xhr), 'error');
+        });
+    }
+
+    function duplicateProfile() {
+        var name = profileName() || 'Label';
+        postProfile(boot.urls.profiles, {
+            name: name + ' copy',
+            auto_name: 1,
+            layout: readLayout()
+        }).done(acceptProfiles).fail(function (xhr) {
+            setStatus(readError(xhr), 'error');
+        });
+    }
+
+    function renameProfile() {
+        if (!state.profileId) {
+            setStatus('Load a profile before renaming it.', 'error');
+            return;
+        }
+        postProfile(boot.urls.profiles + '/' + state.profileId + '/rename', {
+            name: profileName()
+        }).done(acceptProfiles).fail(function (xhr) {
+            setStatus(readError(xhr), 'error');
+        });
+    }
+
+    function deleteProfile() {
+        if (!state.profileId) {
+            return;
+        }
+        ask('Delete this label profile?').then(function (ok) {
+            if (!ok) {
+                return;
+            }
+            $.ajax({ url: boot.urls.profiles + '/' + state.profileId, method: 'DELETE' })
+                .done(function (res) {
+                    acceptProfiles(res);
+                    var next = (res.profiles || []).filter(function (p) {
+                        return String(p.id) === String(state.profileId);
+                    })[0] || (res.profiles || [])[0];
+                    if (next) {
+                        applyProfile(next, !!state.product);
+                    }
+                })
+                .fail(function (xhr) {
+                    setStatus(readError(xhr), 'error');
+                });
+        });
+    }
+
+    function setDefaultProfile() {
+        if (!state.profileId) {
+            return;
+        }
+        postProfile(boot.urls.profiles + '/' + state.profileId + '/default', {})
+            .done(acceptProfiles)
+            .fail(function (xhr) {
+                setStatus(readError(xhr), 'error');
+            });
+    }
+
+    function loadSelected() {
+        var id = text('zl_profile');
+        var profile = state.profiles.filter(function (item) {
+            return String(item.id) === String(id);
+        })[0];
+        if (!profile) {
+            setStatus('The selected label profile could not be found.', 'error');
+            return;
+        }
+        applyProfile(profile, !!state.product);
+        setStatus('Layout loaded.', 'ok');
+    }
+
+    function resetAlignment() {
+        ask('Restore the default alignment? Column positions, barcode, product name, SKU, price, and vertical text offsets return to the Zebra defaults. This is not saved until you press Save layout.').then(function (ok) {
+            if (!ok) {
+                return;
+            }
+            var defaults = boot.defaults || {};
+            alignKeys.forEach(function (key) {
+                setVal('zl_' + key, defaults[key]);
+            });
+            setVal('zl_product_name_font_weight', defaults.product_name_font_weight || 'bold');
+            setVal('zl_product_name_align', defaults.product_name_align || 'center');
+            setChecked('zl_product_name_show', defaults.show_product_name !== false && defaults.show_product_name !== 0);
+            setChecked('zl_product_name_wrap', defaults.product_name_wrap);
+            state.barcodeKey = '';
+            updatePreview();
+            setStatus('Default alignment restored. Press Save layout to keep it.', 'ok');
+        });
+    }
+
+    function clientPrintError() {
+        if (!state.product || !state.product.variation_id) {
+            return 'Select a product before printing.';
+        }
+        if (!state.product.barcode) {
+            return 'Barcode is missing for this product.';
+        }
+        var rawQty = text('zl_qty').trim();
+        var qty = parseInt(rawQty, 10);
+        if (!/^\d+$/.test(rawQty) || qty < 1 || qty > 100) {
+            return 'Please enter a valid print quantity.';
+        }
+        if (!text('zl_printer_name').trim()) {
+            return 'Select a printer before printing.';
+        }
+        return '';
+    }
+
+    function printerMessage(err) {
+        var raw = '';
+        if (err && err.message) {
+            raw = String(err.message);
+        } else if (err) {
+            raw = String(err);
+        }
+        var low = raw.toLowerCase();
+        if (low === 'printer' || low.indexOf('printer') !== -1) {
+            return 'Unable to connect to the selected printer.';
+        }
+        if (low.indexOf('websocket') !== -1 || low.indexOf('connection') !== -1 || low.indexOf('qz') !== -1 || low.indexOf('service') !== -1 || low.indexOf('establish') !== -1) {
+            return 'Printer connection required. Please start the configured printing service.';
+        }
+        return 'Unable to connect to the selected printer.';
+    }
+
+    function withTimeout(promise, ms) {
+        return new Promise(function (resolve, reject) {
+            var timer = setTimeout(function () {
+                reject(new Error('service'));
+            }, ms);
+            Promise.resolve(promise).then(function (value) {
+                clearTimeout(timer);
+                resolve(value);
+            }, function (err) {
+                clearTimeout(timer);
+                reject(err);
+            });
+        });
+    }
+
+    function prepareQz() {
+        window.qz.security.setCertificatePromise(function (resolve) {
+            resolve();
+        });
+        window.qz.security.setSignaturePromise(function () {
+            return function (resolve) {
+                resolve();
+            };
+        });
+    }
+
+    function connectQz() {
+        prepareQz();
+        if (window.qz.websocket.isActive()) {
+            return Promise.resolve();
+        }
+        return window.qz.websocket.connect({
+            host: ['localhost'],
+            usingSecure: false,
+            retries: 0,
+            delay: 0
+        });
+    }
+
+    function choosePrinter(wanted) {
+        return window.qz.printers.find().then(function (list) {
+            var names = Array.isArray(list) ? list.slice() : (list ? [String(list)] : []);
+            var exact = names.filter(function (name) { return name === wanted; })[0];
+            if (exact) {
+                return exact;
+            }
+            var lower = wanted.toLowerCase();
+            var insensitive = names.filter(function (name) {
+                return String(name).toLowerCase() === lower;
+            })[0];
+            if (insensitive) {
+                return insensitive;
+            }
+            var zebra = names.filter(function (name) {
+                var value = String(name).toLowerCase();
+                return value.indexOf('zdesigner') !== -1 || value.indexOf('zebra') !== -1 || value.indexOf('zd2') !== -1;
+            })[0];
+            if (zebra) {
+                return zebra;
+            }
+            throw new Error('printer');
+        });
+    }
+
+    function loadQz() {
+        if (window.qz && window.qz.websocket) {
+            return Promise.resolve();
+        }
+        if (state.qzLoading) {
+            return state.qzLoading;
+        }
+        state.qzLoading = new Promise(function (resolve, reject) {
+            var script = document.createElement('script');
+            script.src = boot.urls.qz;
+            script.onload = function () {
+                if (window.qz && window.qz.websocket) {
+                    resolve();
+                } else {
+                    reject(new Error('service'));
+                }
+            };
+            script.onerror = function () {
+                reject(new Error('service'));
+            };
+            document.head.appendChild(script);
+        }).catch(function (err) {
+            state.qzLoading = null;
+            throw err;
+        });
+        return state.qzLoading;
+    }
+
+    function zebraStylesheetHref() {
+        var link = document.querySelector('link[href*="labels-zebra.css"]');
+        return link ? link.href : 'css/labels-zebra.css';
+    }
+
+    function buildZebraPrintHtml(rows) {
+        updatePreview();
+        var canvas = byId('zl_canvas');
+        if (!canvas) {
+            return '';
+        }
+        var layout = readLayout();
+        var width = Math.max(200, layout.width || 800);
+        var height = Math.max(40, layout.height || 140);
+        var dpi = parseInt(layout.printer_dpi, 10) || 203;
+        var widthMm = (width / dpi * 25.4);
+        var heightMm = (height / dpi * 25.4);
+        var scale = (widthMm * 96 / 25.4) / width;
+        var pages = '';
+        var row;
+        for (row = 0; row < rows; row++) {
+            var clone = canvas.cloneNode(true);
+            clone.querySelectorAll('.zl-grid, .zl-bound, .zl-coord').forEach(function (node) {
+                node.remove();
+            });
+            clone.style.transform = 'none';
+            clone.style.border = 'none';
+            clone.style.width = width + 'px';
+            clone.style.height = height + 'px';
+            clone.classList.remove('is-coords');
+            pages += '<div class="zl-sheet-page" style="width:' + widthMm.toFixed(2) + 'mm;height:' + heightMm.toFixed(2) + 'mm;overflow:hidden;page-break-after:always;break-after:page;">' +
+                '<div style="width:' + width + 'px;height:' + height + 'px;transform:scale(' + scale + ');transform-origin:top left;">' +
+                clone.outerHTML +
+                '</div></div>';
+        }
+        var wCss = widthMm.toFixed(2) + 'mm';
+        var hCss = heightMm.toFixed(2) + 'mm';
+        return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print Labels</title>' +
+            '<link rel="stylesheet" href="' + zebraStylesheetHref() + '">' +
+            '<style>' +
+            '@page { size: ' + wCss + ' ' + hCss + '; margin: 0; }' +
+            'html, body { margin: 0; padding: 0; background: #fff; }' +
+            '@media print { html, body { margin: 0 !important; padding: 0 !important; } .zl-sheet-page:last-child { page-break-after: auto; break-after: auto; } }' +
+            '</style></head><body>' + pages + '</body></html>';
+    }
+
+    function printLabels() {
+        if (state.printing) {
+            return;
+        }
+        var problem = clientPrintError();
+        if (problem) {
+            setStatus(problem, 'error');
+            return;
+        }
+        if (!window.LabelPrintEngine || typeof window.LabelPrintEngine.openPrintDocument !== 'function') {
+            setStatus('The label print function is not ready yet. Reload the page and try again.', 'error');
+            return;
+        }
+        var rows = parseInt(text('zl_qty'), 10);
+        var docHtml = buildZebraPrintHtml(rows);
+        if (!docHtml) {
+            setStatus('The label preview is not ready yet.', 'error');
+            return;
+        }
+        var button = byId('zl_print');
+        state.printing = true;
+        button.disabled = true;
+        var original = button.innerHTML;
+        button.textContent = 'Printing…';
+        var opened = window.LabelPrintEngine.openPrintDocument(docHtml, true);
+        state.printing = false;
+        button.disabled = false;
+        button.innerHTML = original;
+        if (!opened) {
+            setStatus('Pop-up blocked. Allow pop-ups for this site to print labels.', 'error');
+            return;
+        }
+        var labels = rows * 3;
+        var done = 'Print dialog opened for ' + rows + (rows === 1 ? ' row' : ' rows') + ' (' + labels + ' labels). Choose the Zebra printer, scale 100%, margins none.';
+        setStatus(done, 'ok');
+        if (window.toastr) {
+            toastr.success(done);
+        }
+    }
+
+    function showMode(mode) {
+        var zebra = byId('zl_workspace');
+        var sheet = byId('ld_sheet_workspace');
+        var zebraBtn = byId('zl_mode_zebra');
+        var sheetBtn = byId('zl_mode_sheet');
+        var showSheet = mode === 'sheet';
+        if (zebra) {
+            zebra.classList.toggle('zl-is-hidden', showSheet);
+        }
+        if (sheet) {
+            sheet.classList.toggle('zl-is-hidden', !showSheet);
+        }
+        if (zebraBtn) {
+            zebraBtn.classList.toggle('is-active', !showSheet);
+        }
+        if (sheetBtn) {
+            sheetBtn.classList.toggle('is-active', showSheet);
+        }
+        if (showSheet && typeof window.scheduleLivePreview === 'function') {
+            window.scheduleLivePreview();
+        }
+        if (!showSheet) {
+            fitPreview();
+        }
+    }
+
+    function bindSearch() {
+        var input = $('#zl_search');
+        if (!input.length || !$.fn.autocomplete || !boot.urls || !boot.urls.search) {
+            return;
+        }
+        input.autocomplete({
+            source: boot.urls.search + '?check_enable_stock=false',
+            minLength: 2,
+            response: function (event, ui) {
+                if (ui.content.length === 1) {
+                    ui.item = ui.content[0];
+                    $(this).data('ui-autocomplete')._trigger('select', 'autocompleteselect', ui);
+                    $(this).autocomplete('close');
+                } else if (ui.content.length === 0 && window.LANG && LANG.no_products_found) {
+                    swal(LANG.no_products_found);
+                }
+            },
+            select: function (event, ui) {
+                $(this).val('');
+                loadProduct(ui.item.variation_id);
+                return false;
+            }
+        }).autocomplete('instance')._renderItem = function (ul, item) {
+            return $('<li>').append($('<div>').text(item.text)).appendTo(ul);
+        };
+    }
+
+    function bindNudge() {
+        var workspace = byId('zl_workspace');
+        if (!workspace) {
+            return;
+        }
+        workspace.addEventListener('click', function (event) {
+            var btn = event.target.closest('.zl-nudge');
+            if (!btn) {
+                return;
+            }
+            var input = byId(btn.getAttribute('data-target'));
+            if (!input) {
+                return;
+            }
+            var step = (event.shiftKey ? 10 : 1) * parseInt(btn.getAttribute('data-step'), 10);
+            input.value = (parseFloat(input.value) || 0) + step;
+            state.barcodeKey = '';
+            updatePreview();
+        });
+        workspace.addEventListener('keydown', function (event) {
+            var el = event.target;
+            if (!el || el.tagName !== 'INPUT' || !el.dataset || !el.dataset.axis) {
+                return;
+            }
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(event.key) === -1) {
+                return;
+            }
+            event.preventDefault();
+            var step = event.shiftKey ? 10 : 1;
+            var delta = 0;
+            if (el.dataset.axis === 'x') {
+                if (event.key === 'ArrowLeft') { delta = -step; }
+                if (event.key === 'ArrowRight') { delta = step; }
+            }
+            if (el.dataset.axis === 'y') {
+                if (event.key === 'ArrowUp') { delta = -step; }
+                if (event.key === 'ArrowDown') { delta = step; }
+            }
+            if (!delta) {
+                return;
+            }
+            el.value = (parseFloat(el.value) || 0) + delta;
+            updatePreview();
+        });
+        workspace.addEventListener('input', function (event) {
+            var id = event.target.id || '';
+            if (id === 'zl_qty') {
+                updateQuantitySummary();
+                return;
+            }
+            if (id === 'zl_profile_name' || id === 'zl_search') {
+                return;
+            }
+            if (id === 'zl_barcode_width' || id === 'zl_barcode_height') {
+                state.barcodeKey = '';
+            }
+            updatePreview();
+        });
+        workspace.addEventListener('change', function (event) {
+            if (event.target.id === 'zl_price_group' && state.product) {
+                loadProduct(state.product.variation_id, {
+                    lot_number: state.product.lot_number,
+                    exp_date: state.product.exp_date,
+                    quantity: state.product.purchase_quantity
+                }, false);
+                return;
+            }
+            if (event.target.id === 'zl_product_name_font_weight') {
+                var nameSize = num('zl_product_name_font_size') || 20;
+                setVal('zl_product_name_font_width', text('zl_product_name_font_weight') === 'normal' ? Math.max(8, Math.round(nameSize * 0.7)) : nameSize);
+            }
+            if (event.target.id === 'zl_show_grid' || event.target.id === 'zl_show_bounds' || event.target.id === 'zl_show_coords' || event.target.id === 'zl_sku_font_weight' || event.target.id === 'zl_printer_dpi' || event.target.id === 'zl_product_name_font_weight' || event.target.id === 'zl_product_name_align' || event.target.id === 'zl_product_name_show' || event.target.id === 'zl_product_name_wrap') {
+                updatePreview();
+            }
+        });
+    }
+
+    $(function () {
+        if (!byId('zl_workspace')) {
+            return;
+        }
+        renderQueue();
+        bindSearch();
+        bindNudge();
+        var defaults = boot.defaults || {};
+        var initial = (state.profiles || []).filter(function (p) { return p.is_default; })[0] || state.profiles[0] || defaults;
+        applyProfile(initial, true);
+        if (boot.product) {
+            state.product = boot.product;
+            renderProduct(true);
+            state.barcodeKey = '';
+            updatePreview();
+        }
+        updateQuantitySummary();
+        byId('zl_load').addEventListener('click', loadSelected);
+        byId('zl_save').addEventListener('click', saveProfile);
+        byId('zl_duplicate').addEventListener('click', duplicateProfile);
+        byId('zl_rename').addEventListener('click', renameProfile);
+        byId('zl_delete').addEventListener('click', deleteProfile);
+        byId('zl_default').addEventListener('click', setDefaultProfile);
+        byId('zl_reset').addEventListener('click', resetAlignment);
+        byId('zl_print').addEventListener('click', printLabels);
+        byId('zl_print_preview').addEventListener('click', openPrintPreview);
+        byId('zl_mode_zebra').addEventListener('click', function () { showMode('zebra'); });
+        byId('zl_mode_sheet').addEventListener('click', function () { showMode('sheet'); });
+        window.addEventListener('resize', fitPreview);
+        if (!boot.ready) {
+            showMode('sheet');
+        }
+    });
+}(jQuery));

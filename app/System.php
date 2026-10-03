@@ -7,13 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 class System extends Model
 {
     /**
-     * Per-request property cache.
-     *
-     * @var array<string, mixed>
-     */
-    protected static $propertyCache = [];
-
-    /**
      * The table associated with the model.
      *
      * @var string
@@ -42,17 +35,14 @@ class System extends Model
      */
     public static function getProperty($key)
     {
-        if (array_key_exists($key, self::$propertyCache)) {
-            return self::$propertyCache[$key];
-        }
-
         $row = System::where('key', $key)
                 ->first();
 
-        $value = isset($row->value) ? $row->value : null;
-        self::$propertyCache[$key] = $value;
-
-        return $value;
+        if (isset($row->value)) {
+            return $row->value;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -63,23 +53,14 @@ class System extends Model
      */
     public static function getProperties($keys, $pluck = false)
     {
-        $cacheKey = ($pluck ? 'pluck:' : 'get:').implode('|', $keys);
-        if (array_key_exists($cacheKey, self::$propertyCache)) {
-            return self::$propertyCache[$cacheKey];
-        }
-
         if ($pluck == true) {
-            $result = System::whereIn('key', $keys)
+            return System::whereIn('key', $keys)
                 ->pluck('value', 'key');
         } else {
-            $result = System::whereIn('key', $keys)
+            return System::whereIn('key', $keys)
                 ->get()
                 ->toArray();
         }
-
-        self::$propertyCache[$cacheKey] = $result;
-
-        return $result;
     }
 
     /**
@@ -110,7 +91,6 @@ class System extends Model
     {
         System::where('key', $key)
             ->update(['value' => $value]);
-        self::$propertyCache[$key] = $value;
     }
 
     /**
@@ -123,7 +103,6 @@ class System extends Model
     {
         System::where('key', $key)
             ->delete();
-        unset(self::$propertyCache[$key]);
     }
 
     /**
@@ -139,6 +118,5 @@ class System extends Model
             ['key' => $key],
             ['value' => $value]
         );
-        self::$propertyCache[$key] = $value;
     }
 }

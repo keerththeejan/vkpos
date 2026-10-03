@@ -21,7 +21,6 @@ use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GroupTaxController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\ImportOpeningStockController;
 use App\Http\Controllers\ImportProductsController;
 use App\Http\Controllers\ImportSalesController;
@@ -29,6 +28,7 @@ use App\Http\Controllers\Install;
 use App\Http\Controllers\InvoiceLayoutController;
 use App\Http\Controllers\InvoiceSchemeController;
 use App\Http\Controllers\LabelsController;
+use App\Http\Controllers\LabelZebraController;
 use App\Http\Controllers\LedgerDiscountController;
 use App\Http\Controllers\LocationSettingsController;
 use App\Http\Controllers\ManageUserController;
@@ -113,7 +113,6 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::get('/sign-in-as-user/{id}', [ManageUserController::class, 'signInAsUser'])->name('sign-in-as-user');
 
     Route::get('/home', [HomeController::class, 'index'])->name('home');
-    Route::post('/vkpos-performance/clear-cache', [PerformanceController::class, 'clearCache'])->name('vkpos.performance.clear-cache');
     Route::get('/home/get-totals', [HomeController::class, 'getTotals']);
     Route::get('/home/product-stock-alert', [HomeController::class, 'getProductStockAlert']);
     Route::get('/home/purchase-payment-dues', [HomeController::class, 'getPurchasePaymentDues']);
@@ -257,10 +256,14 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::get('/labels/show', [LabelsController::class, 'show']);
     Route::get('/labels/add-product-row', [LabelsController::class, 'addProductRow']);
     Route::get('/labels/preview', [LabelsController::class, 'preview']);
-    Route::get('/labels/products/search', [LabelsController::class, 'searchProducts']);
-    Route::get('/labels/product/{variation_id}', [LabelsController::class, 'getProduct'])->where('variation_id', '[0-9]+');
-    Route::post('/labels/print', [LabelsController::class, 'printLabels']);
-    Route::post('/labels/test-print', [LabelsController::class, 'testPrint']);
+    Route::get('/labels/zebra/product/{variationId}', [LabelZebraController::class, 'product']);
+    Route::post('/labels/zebra/profiles', [LabelZebraController::class, 'store']);
+    Route::post('/labels/zebra/profiles/{id}', [LabelZebraController::class, 'update']);
+    Route::post('/labels/zebra/profiles/{id}/rename', [LabelZebraController::class, 'rename']);
+    Route::post('/labels/zebra/profiles/{id}/duplicate', [LabelZebraController::class, 'duplicate']);
+    Route::post('/labels/zebra/profiles/{id}/default', [LabelZebraController::class, 'setDefault']);
+    Route::delete('/labels/zebra/profiles/{id}', [LabelZebraController::class, 'destroy']);
+    Route::post('/labels/zebra/zpl', [LabelZebraController::class, 'zpl']);
 
     //Reports...
     Route::get('/reports/gst-purchase-report', [ReportController::class, 'gstPurchaseReport']);

@@ -146,42 +146,43 @@
                         </div>
                     </div>
                     <div class="col-md-5">
-                        <div class="payment-summary pos-pay-summary-card premium-payment-summary" role="region" aria-label="Payment Summary">
-                                <div class="payment-summary-title">Payment Summary</div>
+                        <div class="box box-solid premium-payment-summary pos-pay-summary-card">
+                            <div class="box-body">
+                                <div class="pos-pay-summary-title">Payment Summary</div>
 
-                                <div class="summary-row summary-row-items pos-pay-row pos-pay-row-items">
-                                    <span class="summary-label pos-pay-label">@lang('lang_v1.total_items')</span>
-                                    <strong class="summary-value"><span class="pos-pay-value lead text-bold pos_total_items">0</span></strong>
+                                <div class="pos-pay-row pos-pay-row-items">
+                                    <span class="pos-pay-label">@lang('lang_v1.total_items')</span>
+                                    <span class="pos-pay-value lead text-bold pos_total_items">0</span>
                                 </div>
 
-                                <div class="summary-row pos-pay-row pos-pay-row-sub">
-                                    <span class="summary-label pos-pay-label">@lang('sale.subtotal')</span>
-                                    <strong class="summary-value"><span class="pos-pay-value pos-pay-subtotal-display">0</span></strong>
+                                <div class="pos-pay-row pos-pay-row-sub">
+                                    <span class="pos-pay-label">@lang('sale.subtotal')</span>
+                                    <span class="pos-pay-value pos-pay-subtotal-display">0</span>
                                 </div>
 
-                                <div class="summary-row pos-pay-row pos-pay-row-disc">
-                                    <span class="summary-label pos-pay-label">@lang('sale.discount')</span>
-                                    <strong class="summary-value"><span class="pos-pay-value pos-pay-discount-display">- 0</span></strong>
+                                <div class="pos-pay-row pos-pay-row-disc">
+                                    <span class="pos-pay-label">@lang('sale.discount')</span>
+                                    <span class="pos-pay-value pos-pay-discount-display">0</span>
                                 </div>
 
-                                <div class="summary-sep pos-pay-divider"></div>
+                                <div class="pos-pay-divider"></div>
 
-                                <div class="summary-row summary-row-total pos-pay-row pos-pay-row-total">
-                                    <span class="summary-label pos-pay-label">@lang('sale.total')</span>
-                                    <strong class="summary-value summary-total-value"><span class="lead text-bold total_payable_span pos-pay-value">0</span></strong>
+                                <div class="pos-pay-row pos-pay-row-total">
+                                    <span class="pos-pay-label">@lang('sale.total')</span>
+                                    <span class="lead text-bold total_payable_span pos-pay-value">0</span>
                                 </div>
 
-                                <div class="summary-row summary-row-paid pos-pay-row pos-pay-row-paid">
-                                    <span class="summary-label pos-pay-label">Paid Amount</span>
-                                    <strong class="summary-value summary-paid-value"><span class="lead text-bold total_paying pos-pay-value">0</span></strong>
+                                <div class="pos-pay-row pos-pay-row-paid">
+                                    <span class="pos-pay-label">Paid Amount</span>
+                                    <span class="lead text-bold total_paying pos-pay-value">0</span>
                                 </div>
                                 <input type="hidden" id="total_paying_input">
 
-                                <div class="summary-sep summary-sep-change pos-pay-divider"></div>
+                                <div class="pos-pay-divider"></div>
 
-                                <div class="summary-row summary-row-change pos-pay-row pos-pay-row-change pos-pay-change-wrap">
-                                    <span class="summary-label pos-pay-label">Change</span>
-                                    <strong class="summary-value summary-change-value"><span class="lead text-bold change_return_span pos-pay-value">0</span></strong>
+                                <div class="pos-pay-row pos-pay-row-change pos-pay-change-wrap">
+                                    <span class="pos-pay-label">Change</span>
+                                    <span class="lead text-bold change_return_span pos-pay-value">0</span>
                                 </div>
                                 {!! Form::hidden('change_return', $change_return['amount'], [
                                     'class' => 'form-control change_return input_number',
@@ -193,11 +194,13 @@
                                         value="{{ $change_return['id'] }}">
                                 @endif
 
-                                <div class="summary-row summary-row-due pos-pay-row pos-pay-row-due pos-pay-due-wrap">
-                                    <span class="summary-label pos-pay-label">Balance Due</span>
-                                    <strong class="summary-value"><span class="lead text-bold balance_due pos-pay-value">0</span></strong>
+                                <div class="pos-pay-row pos-pay-row-due pos-pay-due-wrap">
+                                    <span class="pos-pay-label">Balance Due</span>
+                                    <span class="lead text-bold balance_due pos-pay-value">0</span>
                                 </div>
                                 <input type="hidden" id="in_balance_due" value=0>
+                            </div>
+                            <!-- /.box-body -->
                         </div>
                     </div>
                 </div>

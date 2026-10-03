@@ -17,7 +17,6 @@ $(document).ready(function() {
         pos_form_obj = $('form#edit_pos_sell_form');
     } else {
         pos_form_obj = $('form#add_pos_sell_form');
-        pos_total_row();
     }
     if ($('form#edit_pos_sell_form').length > 0 || $('form#add_pos_sell_form').length > 0) {
         initialize_printer();
@@ -69,7 +68,7 @@ $(document).ready(function() {
     //get customer
     $('select#customer_id').select2({
         ajax: {
-            url: (typeof vkposUrl === 'function' ? vkposUrl('/contacts/customers') : '/contacts/customers'),
+            url: '/contacts/customers',
             dataType: 'json',
             delay: 250,
             data: function(params) {
@@ -258,40 +257,30 @@ $(document).ready(function() {
                     var is_draft=true;
                 }
 
+            var selling_price = item.selling_price;
+            if (item.variation_group_price) {
+                selling_price = item.variation_group_price;
+            }
+            var price_text = __currency_trans_from_en(selling_price, false, false, __currency_precision, true);
+            var stock = item.enable_stock == 1 ? posStockPhrase(item.qty_available, item.unit, item.alert_quantity) : null;
+            var name_line = item.name;
+            if (item.type == 'variable') {
+                name_line += '-' + item.variation;
+            }
+
             if (item.enable_stock == 1 && item.qty_available <= 0 && !is_overselling_allowed && !for_so && !is_draft) {
-                var string = '<li class="ui-state-disabled">' + item.name;
-                if (item.type == 'variable') {
-                    string += '-' + item.variation;
-                }
-                var selling_price = item.selling_price;
-                if (item.variation_group_price) {
-                    selling_price = item.variation_group_price;
-                }
-                string +=
-                    ' (' +
-                    item.sub_sku +
-                    ')' +
-                    '<br> Price: ' +
-                    __currency_trans_from_en(selling_price, false, false, __currency_precision, true) +
-                    ' (Out of stock) </li>';
+                var string = '<li class="ui-state-disabled">' + name_line
+                    + '<br>SKU: ' + item.sub_sku
+                    + '<br><span class="pos-search-stock ' + stock.cls + '">' + stock.text + '</span>'
+                    + '<br> Price: ' + price_text + '</li>';
                 return $(string).appendTo(ul);
             } else {
-                var string = '<div>' + item.name;
-                if (item.type == 'variable') {
-                    string += '-' + item.variation;
+                var string = '<div>' + name_line
+                    + '<br>SKU: ' + item.sub_sku;
+                if (stock) {
+                    string += '<br><span class="pos-search-stock ' + stock.cls + '">' + stock.text + '</span>';
                 }
-
-                var selling_price = item.selling_price;
-                if (item.variation_group_price) {
-                    selling_price = item.variation_group_price;
-                }
-
-                string += ' (' + item.sub_sku + ')' + '<br> Price: ' + __currency_trans_from_en(selling_price, false, false, __currency_precision, true);
-                if (item.enable_stock == 1) {
-                    var qty_available = __currency_trans_from_en(item.qty_available, false, false, __currency_precision, true);
-                    string += ' - ' + qty_available + item.unit;
-                }
-                string += '</div>';
+                string += '<br> Price: ' + price_text + '</div>';
 
                 return $('<li>')
                     .append(string)
@@ -329,6 +318,7 @@ $(document).ready(function() {
         });
 
         pos_total_row();
+        posRefreshLineStock();
 
         adjustComboQty(tr);
     });
@@ -500,6 +490,7 @@ $(document).ready(function() {
             .parents('tr')
             .remove();
         pos_total_row();
+        posRefreshLineStock();
     });
 
     //Cancel the invoice
@@ -787,7 +778,6 @@ $(document).ready(function() {
     });
 
     pos_form_validator = pos_form_obj.validate({
-        ignore: ':hidden, .modal:not(.in):not(.show) input, .modal:not(.in):not(.show) select, .modal:not(.in):not(.show) textarea',
         submitHandler: function(form) {
             // var total_payble = __read_number($('input#final_total_input'));
             // var total_paying = __read_number($('input#total_paying_input'));
@@ -921,33 +911,18 @@ $(document).ready(function() {
     });
 
     //Update discount
-    $('button#posEditDiscountModalUpdate').click(function(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    $('button#posEditDiscountModalUpdate').click(function() {
 
-        validate_discount_field();
-
-        var $discount_amount_modal = $('#discount_amount_modal');
-        var $discount_type_modal = $('#discount_type_modal');
-        var entered_discount = __read_number($discount_amount_modal);
-        var max_discount = parseFloat($discount_amount_modal.data('max-discount'));
-        if ($discount_amount_modal.val() != '' && !isNaN(max_discount)) {
-            var max_allowed = max_discount;
-            if (($discount_type_modal.val() || 'percentage') == 'fixed') {
-                max_allowed = __calculate_amount('percentage', max_discount, get_subtotal());
-            }
-            if (entered_discount > max_allowed) {
-                toastr.error($discount_amount_modal.data('max-discount-error_msg'));
-                return false;
-            }
+        //if discount amount is not valid return false
+        if (!$("#discount_amount_modal").valid()) {
+            return false;
         }
-
         //Close modal
         $('div#posEditDiscountModal').modal('hide');
 
         //Update values
-        $('input#discount_type').val($discount_type_modal.val() || 'percentage');
-        __write_number($('input#discount_amount'), entered_discount);
+        $('input#discount_type').val($('select#discount_type_modal').val());
+        __write_number($('input#discount_amount'), __read_number($('input#discount_amount_modal')));
 
         if ($('#reward_point_enabled').length) {
             var reward_validation = isValidatRewardPoint();
@@ -1223,6 +1198,7 @@ $(document).ready(function() {
         is_enabled_stock,
         device_model_id
     );
+    posRefreshLineStock();
     
     $('select#select_location_id').on('change', function(e) {
         $('input#suggestion_page').val(1);
@@ -1478,6 +1454,7 @@ $(document).ready(function() {
             qty_element.trigger('change');
         }
         adjustComboQty(tr);
+        posRefreshLineStock();
     });
 
     //Confirmation before page load.
@@ -1608,6 +1585,104 @@ function get_featured_products() {
         $('#feature_product_div').addClass('hide');
         $('#featured_products_box').html('');
     }
+}
+
+function posQtyText(value) {
+    var number = parseFloat(value);
+    if (isNaN(number)) {
+        number = 0;
+    }
+    if (Math.abs(number - Math.round(number)) < 0.0000001) {
+        return String(Math.round(number));
+    }
+    var precision = typeof __quantity_precision !== 'undefined' ? __quantity_precision : 2;
+    return __number_f(number, false, false, precision);
+}
+
+function posStockPhrase(qty, unit, alertQty) {
+    var n = parseFloat(qty);
+    if (isNaN(n)) {
+        n = 0;
+    }
+    var unitText = unit ? ' ' + unit : '';
+    var formatted = posQtyText(n) + unitText;
+    if (n <= 0) {
+        return { text: (typeof LANG !== 'undefined' && LANG.pos_out_of_stock) ? LANG.pos_out_of_stock : 'Out of Stock', cls: 'is-out' };
+    }
+    var alertLevel = parseFloat(alertQty);
+    if (!isNaN(alertLevel) && alertLevel > 0 && n <= alertLevel) {
+        return { text: ((typeof LANG !== 'undefined' && LANG.pos_low_stock) ? LANG.pos_low_stock : 'Low Stock') + ': ' + formatted, cls: 'is-low' };
+    }
+    return { text: ((typeof LANG !== 'undefined' && LANG.pos_stock_label) ? LANG.pos_stock_label : 'Stock') + ': ' + formatted, cls: '' };
+}
+
+function posRefreshLineStock() {
+    if (!$('#pos_table').length) {
+        return;
+    }
+    var totals = {};
+    $('#pos_table tbody tr.product_row').each(function() {
+        var row = $(this);
+        var stock = row.find('.pos-line-stock');
+        if (!stock.length) {
+            return;
+        }
+        var variationId = row.find('.row_variation_id').val();
+        var qtyInput = row.find('input.pos_quantity');
+        var multiplier = parseFloat(row.find('input.base_unit_multiplier').val());
+        if (isNaN(multiplier) || multiplier <= 0) {
+            multiplier = 1;
+        }
+        var qty = __read_number(qtyInput);
+        if (isNaN(qty)) {
+            qty = 0;
+        }
+        totals[variationId] = (totals[variationId] || 0) + (qty * multiplier);
+    });
+
+    $('#pos_table tbody tr.product_row').each(function() {
+        var row = $(this);
+        var stock = row.find('.pos-line-stock');
+        if (!stock.length) {
+            return;
+        }
+        var variationId = row.find('.row_variation_id').val();
+        var available = parseFloat(stock.attr('data-base-qty'));
+        if (isNaN(available)) {
+            available = 0;
+        }
+        var lot = row.find('select.lot_number');
+        if (lot.length && lot.val()) {
+            var lotQty = parseFloat(lot.find(':selected').data('qty_available'));
+            if (!isNaN(lotQty)) {
+                available = lotQty;
+            }
+        }
+        var unit = stock.attr('data-unit') || '';
+        var phrase = posStockPhrase(available, unit, stock.attr('data-alert-qty'));
+        stock.removeClass('is-low is-out');
+        if (phrase.cls) {
+            stock.addClass(phrase.cls);
+        }
+        stock.find('.pos-stock-now').text(phrase.text);
+
+        var cartBase = totals[variationId] || 0;
+        var after = available - cartBase;
+        var unitText = unit ? ' ' + unit : '';
+        var cartLabel = ((typeof LANG !== 'undefined' && LANG.pos_cart_qty) ? LANG.pos_cart_qty : 'Cart') + ': ' + posQtyText(cartBase) + unitText;
+        var afterLabel = ((typeof LANG !== 'undefined' && LANG.pos_after_sale) ? LANG.pos_after_sale : 'After Sale') + ': ' + posQtyText(after) + unitText;
+        var qtyInput = row.find('input.pos_quantity');
+        var overselling = qtyInput.data('allow-overselling') == true;
+        var line = cartLabel + ' · ' + afterLabel;
+        if (after < -0.0000001 && !overselling && qtyInput.is('[data-rule-max-value]')) {
+            line = ((typeof LANG !== 'undefined' && LANG.pos_insufficient_stock) ? LANG.pos_insufficient_stock : 'Insufficient stock')
+                + '. ' + ((typeof LANG !== 'undefined' && LANG.pos_stock_label) ? LANG.pos_stock_label : 'Stock') + ': ' + posQtyText(available) + unitText
+                + ' · ' + cartLabel
+                + ' · ' + afterLabel;
+            stock.addClass('is-out');
+        }
+        stock.find('.pos-after-sale').text(line);
+    });
 }
 
 function get_product_suggestion_list(category_id, brand_id, location_id, url = null, is_enabled_stock = null, repair_model_id = null) {
@@ -1806,6 +1881,7 @@ function pos_product_row(variation_id = null, purchase_line_id = null, weighing_
                     this_row.find('span.pos_line_total_text').text(line_total);
 
                     pos_total_row();
+                    posRefreshLineStock();
 
                     //Check if multipler is present then multiply it when a new row is added.
                     if(__getUnitMultiplier(this_row) > 1){
@@ -1884,14 +1960,6 @@ function pos_total_row() {
 
     // Payment Summary "Items" is cart line count, not summed/converted quantity.
     var total_items = $('table#pos_table tbody tr.product_row').length;
-    var $cart_panel = $('table#pos_table').closest('.pos_product_div');
-    if (total_items > 0) {
-        $cart_panel.removeClass('is-empty');
-        $('#pos_cart_empty').attr('hidden', 'hidden');
-    } else {
-        $cart_panel.addClass('is-empty');
-        $('#pos_cart_empty').removeAttr('hidden');
-    }
 
     //updating shipping charges
     $('span#shipping_charges_amount').text(
@@ -2193,6 +2261,15 @@ function reset_pos_form(){
 
     $(document).trigger('sell_form_reset');
 
+    if ($('input#suggestion_page').length && $('div#product_list_body').length) {
+        $('input#suggestion_page').val(1);
+        get_product_suggestion_list(
+            typeof global_p_category_id !== 'undefined' ? global_p_category_id : null,
+            typeof global_brand_id !== 'undefined' ? global_brand_id : null,
+            $('input#location_id').val()
+        );
+    }
+
     recover_pos_ui_after_sale();
 }
 
@@ -2359,12 +2436,9 @@ function print_receipt_in_iframe(html) {
         iframe.id = 'vkpos_print_frame';
         iframe.setAttribute('aria-hidden', 'true');
         iframe.setAttribute('tabindex', '-1');
-        iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:80mm;height:1600px;border:0;opacity:0;pointer-events:none;';
+        iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
         document.body.appendChild(iframe);
     }
-
-    iframe.style.width = '80mm';
-    iframe.style.height = '1600px';
 
     var win = iframe.contentWindow;
     if (!win) {
@@ -2372,14 +2446,8 @@ function print_receipt_in_iframe(html) {
     }
     var doc = win.document;
     doc.open();
-    doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#fff;height:auto;}</style></head><body>');
     doc.write(html);
-    doc.write('</body></html>');
     doc.close();
-
-    if (doc.querySelector('.paper-58')) {
-        iframe.style.width = '58mm';
-    }
 
     try {
         if (typeof __currency_convert_recursively === 'function') {
@@ -2490,6 +2558,7 @@ $('table#pos_table tbody').on('change', 'input.pos_line_total', function() {
     tr.find('span.pos_line_total_text').text(__currency_trans_from_en(subtotal, true));
 
     pos_total_row();
+    posRefreshLineStock();
 });
 
 $('div#product_list_body').on('scroll', function() {

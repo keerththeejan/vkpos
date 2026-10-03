@@ -109,4 +109,21 @@ class Controller extends BaseController
 
         return $mpdf;
     }
+
+    /**
+     * Current user may read stock for this business location.
+     */
+    protected function userCanAccessLocation($location_id)
+    {
+        if (empty($location_id) || ! auth()->check()) {
+            return empty($location_id);
+        }
+
+        $permitted = auth()->user()->permitted_locations();
+        if ($permitted == 'all') {
+            return true;
+        }
+
+        return in_array($location_id, $permitted);
+    }
 }

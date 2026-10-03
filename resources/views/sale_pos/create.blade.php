@@ -3,7 +3,7 @@
 @section('title', __('sale.pos_sale'))
 
 @section('content')
-<section class="content no-print pos-app">
+<section class="content no-print">
 	<input type="hidden" id="amount_rounding_method" value="{{$pos_settings['amount_rounding_method'] ?? ''}}">
 	@if(!empty($pos_settings['allow_overselling']))
 		<input type="hidden" id="is_overselling_allowed">
@@ -129,9 +129,69 @@
 		        display: block !important;
 		        color: #000000 !important;
 		        background: #ffffff !important;
-		        height: auto !important;
-		        min-height: 0 !important;
-		        overflow: visible !important;
+		        font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
+		        font-weight: 700 !important;
+		        opacity: 1 !important;
+		        -webkit-print-color-adjust: exact;
+		        print-color-adjust: exact;
+		    }
+		    #receipt_section *,
+		    .print_section * {
+		        color: #000000 !important;
+		        font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
+		        font-weight: 700 !important;
+		        opacity: 1 !important;
+		        text-shadow: none !important;
+		        -webkit-print-color-adjust: exact;
+		        print-color-adjust: exact;
+		        -webkit-font-smoothing: none;
+		        word-break: normal !important;
+		    }
+		    #receipt_section .shop-name,
+		    #receipt_section .shop-name *,
+		    #receipt_section .shop-meta,
+		    #receipt_section .shop-meta *,
+		    .print_section .shop-name,
+		    .print_section .shop-name *,
+		    .print_section .shop-meta,
+		    .print_section .shop-meta * {
+		        font-family: "Noto Sans Tamil", Latha, "Nirmala UI", sans-serif !important;
+		        color: #000000 !important;
+		        font-weight: 700 !important;
+		    }
+		    #receipt_section .shop-name,
+		    #receipt_section .shop-name *,
+		    .print_section .shop-name,
+		    .print_section .shop-name * {
+		        font-weight: 800 !important;
+		    }
+		    #receipt_section .row.em .lbl,
+		    #receipt_section .row.em .val,
+		    #receipt_section .total,
+		    #receipt_section .total *,
+		    #receipt_section .change,
+		    #receipt_section .change *,
+		    #receipt_section .balance-due,
+		    #receipt_section .balance-due *,
+		    #receipt_section .paid-amount,
+		    #receipt_section .paid-amount *,
+		    .print_section .row.em .lbl,
+		    .print_section .row.em .val,
+		    .print_section .total,
+		    .print_section .total *,
+		    .print_section .change,
+		    .print_section .change *,
+		    .print_section .balance-due,
+		    .print_section .balance-due *,
+		    .print_section .paid-amount,
+		    .print_section .paid-amount * {
+		        font-weight: 800 !important;
+		        color: #000000 !important;
+		    }
+		    #receipt_section .sep,
+		    .print_section .sep {
+		        border-bottom-color: #000000 !important;
+		        opacity: 1 !important;
 		    }
 		    .color-555,
 		    .color-555 *,
@@ -140,10 +200,52 @@
 		        color: #000000 !important;
 		        opacity: 1 !important;
 		    }
+		    #receipt_section .invoice-print,
+		    #receipt_section .invoice-print *,
+		    .print_section .invoice-print,
+		    .print_section .invoice-print * {
+		        font-family: Arial, Helvetica, "Noto Sans Tamil", "Noto Sans", sans-serif !important;
+		        font-weight: 500 !important;
+		        word-break: normal !important;
+		    }
+		    #receipt_section .invoice-print .invoice-shop,
+		    #receipt_section .invoice-print .invoice-title,
+		    #receipt_section .invoice-print .summary-row.is-total,
+		    #receipt_section .invoice-print .summary-row.is-total *,
+		    #receipt_section .invoice-print .receipt-name,
+		    .print_section .invoice-print .invoice-shop,
+		    .print_section .invoice-print .invoice-title,
+		    .print_section .invoice-print .summary-row.is-total,
+		    .print_section .invoice-print .summary-row.is-total *,
+		    .print_section .invoice-print .receipt-name {
+		        font-weight: 800 !important;
+		    }
+		    #receipt_section .invoice-print .money,
+		    #receipt_section .invoice-print .payment-value,
+		    #receipt_section .invoice-print .summary-value,
+		    #receipt_section .invoice-print .price-cell,
+		    #receipt_section .invoice-print .total-cell,
+		    #receipt_section .invoice-print .qty-cell,
+		    #receipt_section .invoice-print .unit-cell,
+		    .print_section .invoice-print .money,
+		    .print_section .invoice-print .payment-value,
+		    .print_section .invoice-print .summary-value,
+		    .print_section .invoice-print .price-cell,
+		    .print_section .invoice-print .total-cell,
+		    .print_section .invoice-print .qty-cell,
+		    .print_section .invoice-print .unit-cell {
+		        white-space: nowrap !important;
+		        word-break: keep-all !important;
+		        overflow-wrap: normal !important;
+		    }
 		}
 		@page {
-		    size: auto;
-		    margin: 0;
+		    size: 80mm auto;
+		    height: auto !important;
+		    margin-top: 0mm;
+		    margin-bottom: 0mm;
+		    margin-left: 2mm;
+		    margin-right: 2mm;
 		}
 	</style>
 	<!-- include module css -->

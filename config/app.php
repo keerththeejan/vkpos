@@ -43,11 +43,6 @@ return [
     'debug' => env('APP_DEBUG', true),
 
     /*
-    | Local-only performance headers. Keep false in production.
-    */
-    'vkpos_perf_debug' => env('VKPOS_PERF_DEBUG', false),
-
-    /*
     |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------

@@ -6,7 +6,9 @@
         product: null,
         printing: false,
         barcodeKey: '',
-        qzLoading: null
+        qzLoading: null,
+        skuEditing: false,
+        skuSaving: false
     };
 
     var alignKeys = [
@@ -82,6 +84,9 @@
         return {
             printer_name: text('zl_printer_name').trim(),
             printer_dpi: text('zl_printer_dpi'),
+            label_gap_mm: num('zl_label_gap_mm'),
+            top_offset_mm: num('zl_top_offset_mm'),
+            left_offset_mm: num('zl_left_offset_mm'),
             width: num('zl_width'),
             height: num('zl_height'),
             col1_x: num('zl_col1_x'),
@@ -139,6 +144,9 @@
         setVal('zl_profile_name', profile.name || '');
         setVal('zl_printer_name', profile.printer_name);
         setVal('zl_printer_dpi', profile.printer_dpi);
+        setVal('zl_label_gap_mm', profileValue(profile, 'label_gap_mm'));
+        setVal('zl_top_offset_mm', profileValue(profile, 'top_offset_mm'));
+        setVal('zl_left_offset_mm', profileValue(profile, 'left_offset_mm'));
         setVal('zl_width', profile.width);
         setVal('zl_height', profile.height);
         alignKeys.forEach(function (key) {
@@ -155,6 +163,11 @@
         }
         setChecked('zl_product_name_show', showName);
         setChecked('zl_product_name_wrap', profileValue(profile, 'product_name_wrap'));
+        if (isLegacyProfile(profile)) {
+            applyMediaStack();
+            setVal('zl_barcode_x', 0);
+            setVal('zl_barcode_width', (boot.media && boot.media.barcode_module_width) || 1);
+        }
         if (!keepVertical && profile.vertical_text) {
             setVal('zl_vertical', profile.vertical_text);
         }
@@ -201,10 +214,152 @@
         });
     }
 
+    function setSkuError(message) {
+        var el = byId('zl_sku_error');
+        if (!el) {
+            return;
+        }
+        el.textContent = message || '';
+        el.hidden = !message;
+    }
+
+    function closeSkuEditor() {
+        state.skuEditing = false;
+        var fact = byId('zl_sku_fact');
+        var view = byId('zl_sku_view');
+        var editor = byId('zl_sku_editor');
+        if (fact) {
+            fact.classList.remove('is-editing');
+        }
+        if (view) {
+            view.hidden = false;
+        }
+        if (editor) {
+            editor.hidden = true;
+        }
+        setSkuError('');
+    }
+
+    function syncSkuEditButton() {
+        var btn = byId('zl_sku_edit');
+        if (!btn) {
+            return;
+        }
+        btn.hidden = !(boot.canEditSku && state.product && state.product.variation_id);
+    }
+
+    function openSkuEditor() {
+        if (!boot.canEditSku || !state.product || !state.product.variation_id || state.skuSaving) {
+            return;
+        }
+        var input = byId('zl_sku_input');
+        var fact = byId('zl_sku_fact');
+        var view = byId('zl_sku_view');
+        var editor = byId('zl_sku_editor');
+        if (!input || !editor) {
+            return;
+        }
+        input.value = state.product.barcode || '';
+        input.disabled = false;
+        byId('zl_sku_save').disabled = false;
+        byId('zl_sku_cancel').disabled = false;
+        byId('zl_sku_save').innerHTML = '<i class="fa fa-check" aria-hidden="true"></i> Save';
+        state.skuEditing = true;
+        if (fact) {
+            fact.classList.add('is-editing');
+        }
+        if (view) {
+            view.hidden = true;
+        }
+        editor.hidden = false;
+        setSkuError('');
+        input.focus();
+        input.select();
+    }
+
+    function saveSku() {
+        if (!state.product || !state.product.variation_id || state.skuSaving) {
+            return;
+        }
+        var input = byId('zl_sku_input');
+        var value = input ? input.value.trim() : '';
+        if (value === '') {
+            setSkuError('Barcode / SKU is required.');
+            if (input) {
+                input.focus();
+            }
+            return;
+        }
+        state.skuSaving = true;
+        input.disabled = true;
+        byId('zl_sku_save').disabled = true;
+        byId('zl_sku_cancel').disabled = true;
+        byId('zl_sku_edit').disabled = true;
+        byId('zl_sku_save').innerHTML = '<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Saving';
+        setSkuError('');
+        var variationId = state.product.variation_id;
+        var kept = {
+            lot_number: state.product.lot_number || null,
+            exp_date: state.product.exp_date || null,
+            purchase_quantity: state.product.purchase_quantity || null
+        };
+        $.ajax({
+            url: boot.urls.product + '/' + encodeURIComponent(variationId) + '/barcode',
+            method: 'POST',
+            data: { barcode: value }
+        }).done(function (res) {
+            state.skuSaving = false;
+            byId('zl_sku_edit').disabled = false;
+            if (!state.product || String(state.product.variation_id) !== String(variationId)) {
+                return;
+            }
+            if (!res || !res.success || !res.product) {
+                input.disabled = false;
+                byId('zl_sku_save').disabled = false;
+                byId('zl_sku_cancel').disabled = false;
+                byId('zl_sku_save').innerHTML = '<i class="fa fa-check" aria-hidden="true"></i> Save';
+                setSkuError((res && res.message) || 'Unable to update Barcode / SKU. Please try again.');
+                setStatus((res && res.message) || 'Unable to update Barcode / SKU. Please try again.', 'error');
+                return;
+            }
+            state.product = res.product;
+            state.product.lot_number = kept.lot_number;
+            state.product.exp_date = kept.exp_date;
+            state.product.purchase_quantity = kept.purchase_quantity;
+            state.barcodeKey = '';
+            closeSkuEditor();
+            renderProduct(false);
+            updatePreview();
+            setStatus(res.message || 'Barcode / SKU updated successfully.', 'ok');
+        }).fail(function (xhr) {
+            state.skuSaving = false;
+            byId('zl_sku_edit').disabled = false;
+            if (!state.product || String(state.product.variation_id) !== String(variationId)) {
+                return;
+            }
+            input.disabled = false;
+            byId('zl_sku_save').disabled = false;
+            byId('zl_sku_cancel').disabled = false;
+            byId('zl_sku_save').innerHTML = '<i class="fa fa-check" aria-hidden="true"></i> Save';
+            var message = (xhr && xhr.responseJSON && xhr.responseJSON.message)
+                ? xhr.responseJSON.message
+                : 'Unable to update Barcode / SKU. Please try again.';
+            setSkuError(message);
+            setStatus(message, 'error');
+            if (input) {
+                input.focus();
+            }
+        });
+    }
+
     function renderProduct(setVertical) {
+        if (!state.skuSaving) {
+            closeSkuEditor();
+        }
         var product = state.product;
         byId('zl_product_name').textContent = product ? product.name : 'No product selected';
         byId('zl_product_sku').textContent = product && product.barcode ? product.barcode : '—';
+        syncSkuEditButton();
         byId('zl_product_price').textContent = product && product.price ? product.price : '—';
         var bits = [];
         if (product) {
@@ -349,6 +504,105 @@
         box.hidden = false;
     }
 
+    function mmToDots(mm, dpi) {
+        var negative = Number(mm) < 0;
+        var usedDpi = dpi || parseInt(text('zl_printer_dpi'), 10) || (boot.media && boot.media.dpi) || 203;
+        var dots = Math.round(Math.abs(Number(mm) || 0) * usedDpi / 25.4);
+        return negative ? -dots : dots;
+    }
+
+    function mediaDots() {
+        var media = boot.media || {};
+        var dpi = parseInt(text('zl_printer_dpi'), 10) || media.dpi || 203;
+        var columns = media.label_columns || 3;
+        var labelW = mmToDots(media.label_width_mm || 30, dpi);
+        var labelH = mmToDots(media.label_height_mm || 15, dpi);
+        var gap = mmToDots(num('zl_label_gap_mm'), dpi);
+        var left = mmToDots(num('zl_left_offset_mm'), dpi);
+        var top = mmToDots(num('zl_top_offset_mm'), dpi);
+        var origins = [];
+        var i;
+        for (i = 0; i < columns; i++) {
+            origins.push(i * (labelW + gap));
+        }
+        var span = (columns * labelW) + (Math.max(0, columns - 1) * gap);
+        return {
+            dpi: dpi,
+            labelWidth: labelW,
+            labelHeight: labelH,
+            gap: gap,
+            left: left,
+            top: top,
+            origins: origins,
+            printWidth: span + Math.max(0, left),
+            labelLength: labelH
+        };
+    }
+
+    function isLegacyProfile(profile) {
+        if (!profile) {
+            return false;
+        }
+        var height = mediaDots().labelHeight || 120;
+        return (Number(profile.width) === 800 && Number(profile.height) === 140)
+            || Number(profile.product_name_y) >= height
+            || Number(profile.price_y) >= height;
+    }
+
+    function applyMediaStack() {
+        var media = boot.media || {};
+        var stack = media.stack || {};
+        setVal('zl_barcode_y', stack.barcode_y);
+        setVal('zl_barcode_height', stack.barcode_height || media.barcode_height);
+        setVal('zl_sku_y', stack.sku_y);
+        setVal('zl_sku_font_size', stack.sku_font_size || media.sku_font_height);
+        setVal('zl_price_y', stack.price_y);
+        setVal('zl_price_font_size', stack.price_font_size || media.price_font_height);
+        setVal('zl_product_name_y', stack.product_name_y);
+        setVal('zl_product_name_font_size', stack.product_name_font_size || media.name_font_height);
+        setVal('zl_product_name_font_width', stack.product_name_font_width || media.name_font_width);
+        setVal('zl_product_name_max_width', stack.product_name_max_width || ((media.label_width || 240) - 8));
+        setVal('zl_sku_x', 4);
+        setVal('zl_price_x', 4);
+        setVal('zl_product_name_x', 4);
+    }
+
+    function reflowStack() {
+        var m = mediaDots();
+        var media = boot.media || {};
+        var top = media.content_top || 2;
+        var gap = media.content_gap || 2;
+        var skuH = media.sku_font_height || 14;
+        var priceH = media.price_font_height || 20;
+        var nameH = media.name_font_height || 16;
+        var height = num('zl_barcode_height') || media.barcode_height || 40;
+        var reserved = top + gap + skuH + gap + priceH + gap + nameH + 2;
+        var maxBarcode = Math.max(24, m.labelHeight - reserved);
+        height = Math.max(24, Math.min(maxBarcode, height));
+        setVal('zl_barcode_height', height);
+        setVal('zl_barcode_y', top);
+        setVal('zl_sku_y', top + height + gap);
+        setVal('zl_price_y', top + height + gap + skuH + gap);
+        setVal('zl_product_name_y', top + height + gap + skuH + gap + priceH + gap);
+        setVal('zl_product_name_max_width', m.labelWidth - 8);
+    }
+
+    function syncGeometryFields() {
+        var m = mediaDots();
+        setVal('zl_width', m.printWidth);
+        setVal('zl_height', m.labelLength);
+        setVal('zl_col1_x', m.origins[0]);
+        setVal('zl_col2_x', m.origins[1]);
+        setVal('zl_col3_x', m.origins[2]);
+        var summary = byId('zl_geometry_summary');
+        if (summary) {
+            summary.textContent = '^PW' + m.printWidth + '   ^LL' + m.labelLength
+                + '   labels at ' + m.origins.join(', ')
+                + '   gap ' + m.gap + ' dots';
+        }
+        return m;
+    }
+
     function drawGuides(layout) {
         var canvas = byId('zl_canvas');
         var width = layout.width;
@@ -401,40 +655,81 @@
     }
 
     function updatePreview() {
-        var canvas = byId('zl_canvas');
-        if (!canvas) {
+        var roll = byId('zl_roll');
+        if (!roll) {
             return;
         }
         var layout = readLayout();
+        var media = syncGeometryFields();
         var sku = state.product && state.product.barcode ? state.product.barcode : '';
         var price = state.product && state.product.price ? state.product.price : '';
         var productName = state.product && state.product.name ? state.product.name : '';
         var showName = !!layout.show_product_name && productName !== '';
         var nameText = showName ? displayProductName(productName, layout) : '';
-        var nameLines = layout.product_name_wrap ? Math.max(1, layout.product_name_max_lines || 1) : 1;
+        var nameLines = layout.product_name_wrap ? Math.max(1, Math.min(2, layout.product_name_max_lines || 1)) : 1;
         var vertical = layout.vertical_text;
-        var guides = drawGuides(layout);
-        var elements = document.createElement('div');
-        var bases = [layout.col1_x, layout.col2_x, layout.col3_x];
-        var barcodeKey = sku + '|' + layout.barcode_width + '|' + layout.barcode_height;
-        var redrawBarcode = barcodeKey !== state.barcodeKey;
-        state.barcodeKey = barcodeKey;
+        var zoom = 2.6;
+        var pxPerMm = 96 / 25.4;
+        var labelMmW = (boot.media && boot.media.label_width_mm) || 30;
+        var labelMmH = (boot.media && boot.media.label_height_mm) || 15;
+        var stickerW = labelMmW * pxPerMm * zoom;
+        var stickerH = labelMmH * pxPerMm * zoom;
+        var scale = stickerW / media.labelWidth;
+        var gapPx = media.gap * scale;
+        var module = Math.max(1, Math.floor(parseFloat(layout.barcode_width) || 1));
+        var bcDots = sku ? estimateBarcodeWidth(sku, module) : 0;
+        var nudge = layout.barcode_x || 0;
+        var bcX = sku ? Math.max(0, Math.floor((media.labelWidth - bcDots) / 2) + nudge) : 0;
+        var showBounds = byId('zl_show_bounds') && byId('zl_show_bounds').checked;
+        var showGrid = byId('zl_show_grid') && byId('zl_show_grid').checked;
+        var showCoords = byId('zl_show_coords') && byId('zl_show_coords').checked;
 
-        bases.forEach(function (base, index) {
+        roll.innerHTML = '';
+        roll.style.marginLeft = Math.max(0, media.left) * scale + 'px';
+        roll.style.gap = gapPx + 'px';
+
+        media.origins.forEach(function (origin, index) {
+            var sticker = document.createElement('div');
+            sticker.className = 'zl-sticker' + (showBounds ? '' : ' is-bounds-off') + (showCoords ? ' is-coords' : '');
+            sticker.style.width = stickerW + 'px';
+            sticker.style.height = stickerH + 'px';
+
+            var tag = document.createElement('div');
+            tag.className = 'zl-bound__tag';
+            tag.textContent = 'LABEL ' + (index + 1);
+            sticker.appendChild(tag);
+
+            if (showGrid) {
+                var grid = document.createElement('div');
+                grid.className = 'zl-grid';
+                var x;
+                for (x = 0; x <= media.labelWidth; x += 40) {
+                    var v = document.createElement('div');
+                    v.className = 'zl-grid__v';
+                    v.style.left = (x * scale) + 'px';
+                    sticker.appendChild(v);
+                }
+                var y;
+                for (y = 0; y <= media.labelHeight; y += 20) {
+                    var h = document.createElement('div');
+                    h.className = 'zl-grid__h';
+                    h.style.top = ((y + media.top) * scale) + 'px';
+                    sticker.appendChild(h);
+                }
+                sticker.appendChild(grid);
+            }
+
             var bc = document.createElement('img');
             bc.className = 'zl-el';
             bc.alt = '';
-            bc.style.left = (base + layout.barcode_x) + 'px';
-            bc.style.top = layout.barcode_y + 'px';
-            var previous = canvas.querySelector('[data-bc="' + index + '"]');
-            if (!redrawBarcode && previous && previous.getAttribute('src')) {
-                bc.src = previous.getAttribute('src');
-            } else if (sku && typeof JsBarcode === 'function') {
+            bc.style.left = (bcX * scale) + 'px';
+            bc.style.top = ((layout.barcode_y + media.top) * scale) + 'px';
+            if (sku && typeof JsBarcode === 'function') {
                 try {
                     JsBarcode(bc, sku, {
                         format: 'CODE128',
-                        width: (parseFloat(layout.barcode_width) || 1.5) + 0.1,
-                        height: layout.barcode_height,
+                        width: Math.max(1, module * scale),
+                        height: Math.max(8, layout.barcode_height * scale),
                         displayValue: false,
                         margin: 0
                     });
@@ -442,114 +737,82 @@
                     bc.removeAttribute('src');
                 }
             }
-            bc.setAttribute('data-bc', String(index));
-
-            var nameEl = document.createElement('div');
-            nameEl.className = 'zl-el zl-name p-element p-product-name' + (layout.product_name_wrap ? ' is-wrap' : '');
-            nameEl.id = 'prev-product-name-' + index;
-            if (showName) {
-                var place = namePlacement(base, layout);
-                nameEl.textContent = nameText;
-                nameEl.style.left = place.left + 'px';
-                nameEl.style.top = layout.product_name_y + 'px';
-                nameEl.style.width = place.width + 'px';
-                nameEl.style.maxHeight = (layout.product_name_font_size * nameLines) + 'px';
-                nameEl.style.fontSize = layout.product_name_font_size + 'px';
-                nameEl.style.lineHeight = layout.product_name_font_size + 'px';
-                nameEl.style.fontWeight = layout.product_name_font_weight === 'normal' ? '400' : '700';
-                nameEl.style.textAlign = layout.product_name_align || 'center';
-                nameEl.style.setProperty('--zl-lines', String(nameLines));
-                if (place.ratio !== 1) {
-                    nameEl.style.transform = 'scaleX(' + place.ratio + ')';
-                    nameEl.style.transformOrigin = place.origin;
-                }
-            }
+            sticker.appendChild(bc);
 
             var skuEl = document.createElement('div');
-            skuEl.className = 'zl-el';
+            skuEl.className = 'zl-el zl-sku';
             skuEl.textContent = sku;
-            skuEl.style.left = (base + layout.sku_x) + 'px';
-            skuEl.style.top = layout.sku_y + 'px';
-            skuEl.style.fontSize = layout.sku_font_size + 'px';
+            skuEl.style.left = (4 * scale) + 'px';
+            skuEl.style.top = ((layout.sku_y + media.top) * scale) + 'px';
+            skuEl.style.width = ((media.labelWidth - 8) * scale) + 'px';
+            skuEl.style.fontSize = (layout.sku_font_size * scale) + 'px';
+            skuEl.style.textAlign = 'center';
             skuEl.style.fontWeight = layout.sku_font_weight === 'normal' ? '400' : '700';
+            sticker.appendChild(skuEl);
 
             var priceEl = document.createElement('div');
             priceEl.className = 'zl-el';
             priceEl.textContent = price;
-            priceEl.style.left = (base + layout.price_x) + 'px';
-            priceEl.style.top = layout.price_y + 'px';
-            priceEl.style.fontSize = layout.price_font_size + 'px';
+            priceEl.style.left = (4 * scale) + 'px';
+            priceEl.style.top = ((layout.price_y + media.top) * scale) + 'px';
+            priceEl.style.width = ((media.labelWidth - 8) * scale) + 'px';
+            priceEl.style.fontSize = (layout.price_font_size * scale) + 'px';
+            priceEl.style.textAlign = 'center';
             priceEl.style.fontWeight = '700';
+            sticker.appendChild(priceEl);
 
-            var vertEl = document.createElement('div');
-            vertEl.className = 'zl-el zl-vert';
-            vertEl.textContent = vertical;
-            vertEl.style.left = (base + layout.vertical_x) + 'px';
-            vertEl.style.top = layout.vertical_y + 'px';
-            vertEl.style.fontSize = layout.vertical_font_size + 'px';
-
-            var coord = document.createElement('span');
-            coord.className = 'zl-coord';
-            coord.style.left = (base + layout.barcode_x) + 'px';
-            coord.style.top = Math.max(0, layout.barcode_y - 10) + 'px';
-            coord.textContent = 'BC ' + (base + layout.barcode_x) + ',' + layout.barcode_y
-                + '  NAME ' + (base + layout.product_name_x) + ',' + layout.product_name_y
-                + '  SKU ' + (base + layout.sku_x) + ',' + layout.sku_y
-                + '  PRICE ' + (base + layout.price_x) + ',' + layout.price_y;
-
-            elements.appendChild(bc);
             if (showName) {
-                elements.appendChild(nameEl);
+                var nameEl = document.createElement('div');
+                nameEl.className = 'zl-el zl-name' + (layout.product_name_wrap ? ' is-wrap' : '');
+                nameEl.textContent = nameText;
+                nameEl.style.left = (4 * scale) + 'px';
+                nameEl.style.top = ((layout.product_name_y + media.top) * scale) + 'px';
+                nameEl.style.width = ((media.labelWidth - 8) * scale) + 'px';
+                nameEl.style.fontSize = (layout.product_name_font_size * scale) + 'px';
+                nameEl.style.lineHeight = (layout.product_name_font_size * scale) + 'px';
+                nameEl.style.maxHeight = (layout.product_name_font_size * nameLines * scale) + 'px';
+                nameEl.style.textAlign = 'center';
+                nameEl.style.fontWeight = layout.product_name_font_weight === 'normal' ? '400' : '700';
+                nameEl.style.setProperty('--zl-lines', String(nameLines));
+                sticker.appendChild(nameEl);
             }
-            elements.appendChild(skuEl);
-            elements.appendChild(priceEl);
-            elements.appendChild(vertEl);
-            elements.appendChild(coord);
-        });
 
-        canvas.innerHTML = '';
-        canvas.appendChild(guides.grid);
-        canvas.appendChild(guides.bounds);
-        canvas.appendChild(elements);
+            if (vertical) {
+                var vertEl = document.createElement('div');
+                vertEl.className = 'zl-el zl-vert';
+                vertEl.textContent = vertical;
+                vertEl.style.left = ((media.labelWidth - layout.vertical_font_size - 1) * scale) + 'px';
+                vertEl.style.top = ((2 + media.top) * scale) + 'px';
+                vertEl.style.fontSize = (layout.vertical_font_size * scale) + 'px';
+                sticker.appendChild(vertEl);
+            }
+
+            if (showCoords) {
+                var coord = document.createElement('span');
+                coord.className = 'zl-coord';
+                coord.style.left = '2px';
+                coord.style.bottom = '1px';
+                coord.style.top = 'auto';
+                coord.textContent = 'X ' + origin + '  BC ' + bcX + ',' + layout.barcode_y;
+                sticker.appendChild(coord);
+            }
+
+            roll.appendChild(sticker);
+        });
 
         var warnings = [];
-        var bcW = estimateBarcodeWidth(sku, layout.barcode_width);
-        var bcBad = false;
-        var nameBad = false;
-        var skuBad = false;
-        var priceBad = false;
-        var vertBad = false;
-        bases.forEach(function (base, index) {
-            if (sku && outside(base + layout.barcode_x, layout.barcode_y, bcW, layout.barcode_height, index, layout.width, layout.height)) {
-                bcBad = true;
-            }
-            if (showName && outside(base + layout.product_name_x, layout.product_name_y, layout.product_name_max_width, layout.product_name_font_size * nameLines, index, layout.width, layout.height)) {
-                nameBad = true;
-            }
-            if (sku && outside(base + layout.sku_x, layout.sku_y, estimateText(sku, layout.sku_font_size), layout.sku_font_size, index, layout.width, layout.height)) {
-                skuBad = true;
-            }
-            if (price && outside(base + layout.price_x, layout.price_y, estimateText(price, layout.price_font_size), layout.price_font_size, index, layout.width, layout.height)) {
-                priceBad = true;
-            }
-            if (vertical && outside(base + layout.vertical_x, layout.vertical_y, layout.vertical_font_size, estimateText(vertical, layout.vertical_font_size), index, layout.width, layout.height)) {
-                vertBad = true;
-            }
-        });
-        if (bcBad) {
-            warnings.push('Barcode exceeds label boundary.');
+        var quiet = 10 * module;
+        if (sku && (bcX < quiet || (bcX + bcDots) > media.labelWidth)) {
+            warnings.push('Barcode exceeds the 30 mm label or its quiet zone.');
         }
-        if (nameBad) {
-            warnings.push('Product name exceeds label boundary.');
+        if (showName && (layout.product_name_y + (layout.product_name_font_size * nameLines)) > media.labelHeight) {
+            warnings.push('Product name exceeds the 15 mm label.');
         }
-        if (skuBad) {
-            warnings.push('SKU exceeds label boundary.');
+        if (price && (layout.price_y + layout.price_font_size) > media.labelHeight) {
+            warnings.push('Price exceeds the 15 mm label.');
         }
-        if (priceBad) {
-            warnings.push('Price exceeds label boundary.');
-        }
-        if (vertBad) {
-            warnings.push('Vertical text exceeds label boundary.');
+        if (sku && (layout.sku_y + layout.sku_font_size) > media.labelHeight) {
+            warnings.push('Barcode number exceeds the 15 mm label.');
         }
         showWarnings(warnings);
         fitPreview();
@@ -558,27 +821,28 @@
     function fitPreview() {
         var stage = byId('zl_stage');
         var scaler = byId('zl_scaler');
-        var canvas = byId('zl_canvas');
-        if (!stage || !scaler || !canvas) {
+        var roll = byId('zl_roll');
+        if (!stage || !scaler || !roll) {
             return;
         }
-        var width = Math.max(200, num('zl_width') || 800);
-        var height = Math.max(40, num('zl_height') || 140);
-        var scale = Math.min(1, Math.max(280, stage.clientWidth - 8) / width);
-        canvas.style.transform = 'scale(' + scale + ')';
-        scaler.style.width = Math.ceil(width * scale) + 'px';
-        scaler.style.height = Math.ceil(height * scale) + 'px';
+        var width = roll.scrollWidth || roll.offsetWidth;
+        var height = roll.scrollHeight || roll.offsetHeight;
+        var available = Math.max(280, stage.clientWidth - 8);
+        var fit = width > available ? available / width : 1;
+        roll.style.transform = 'scale(' + fit + ')';
+        scaler.style.width = Math.ceil(width * fit) + 'px';
+        scaler.style.height = Math.ceil(height * fit) + 'px';
     }
 
     function openPrintPreview() {
         updatePreview();
-        var canvas = byId('zl_canvas');
-        if (!canvas) {
+        var roll = byId('zl_roll');
+        if (!roll) {
             setStatus('The label preview is not ready yet.', 'error');
             return;
         }
-        var clone = canvas.cloneNode(true);
-        clone.querySelectorAll('.zl-grid, .zl-bound, .zl-coord').forEach(function (node) {
+        var clone = roll.cloneNode(true);
+        clone.querySelectorAll('.zl-grid, .zl-coord').forEach(function (node) {
             node.remove();
         });
         clone.style.transform = 'none';
@@ -736,9 +1000,14 @@
             setVal('zl_product_name_align', defaults.product_name_align || 'center');
             setChecked('zl_product_name_show', defaults.show_product_name !== false && defaults.show_product_name !== 0);
             setChecked('zl_product_name_wrap', defaults.product_name_wrap);
+            setVal('zl_label_gap_mm', defaults.label_gap_mm);
+            setVal('zl_top_offset_mm', defaults.top_offset_mm);
+            setVal('zl_left_offset_mm', defaults.left_offset_mm);
+            setVal('zl_printer_dpi', defaults.printer_dpi || 203);
+            applyMediaStack();
             state.barcodeKey = '';
             updatePreview();
-            setStatus('Default alignment restored. Press Save layout to keep it.', 'ok');
+            setStatus('Default 30 × 15 mm alignment restored. Press Save layout to keep it.', 'ok');
         });
     }
 
@@ -769,7 +1038,7 @@
         }
         var low = raw.toLowerCase();
         if (low === 'printer' || low.indexOf('printer') !== -1) {
-            return 'Unable to connect to the selected printer.';
+            return 'ZD220 was not found. Start QZ Tray, then check the printer name.';
         }
         if (low.indexOf('websocket') !== -1 || low.indexOf('connection') !== -1 || low.indexOf('qz') !== -1 || low.indexOf('service') !== -1 || low.indexOf('establish') !== -1) {
             return 'Printer connection required. Please start the configured printing service.';
@@ -830,6 +1099,12 @@
             if (insensitive) {
                 return insensitive;
             }
+            var zd220 = names.filter(function (name) {
+                return String(name).toLowerCase().indexOf('zd220') !== -1;
+            })[0];
+            if (zd220) {
+                return zd220;
+            }
             var zebra = names.filter(function (name) {
                 var value = String(name).toLowerCase();
                 return value.indexOf('zdesigner') !== -1 || value.indexOf('zebra') !== -1 || value.indexOf('zd2') !== -1;
@@ -869,90 +1144,152 @@
         return state.qzLoading;
     }
 
-    function zebraStylesheetHref() {
-        var link = document.querySelector('link[href*="labels-zebra.css"]');
-        return link ? link.href : 'css/labels-zebra.css';
+
+    function quantityProblem() {
+        var rawQty = text('zl_qty').trim();
+        var qty = parseInt(rawQty, 10);
+        if (!/^\d+$/.test(rawQty) || qty < 1 || qty > 100) {
+            return 'Please enter a valid print quantity.';
+        }
+        return '';
     }
 
-    function buildZebraPrintHtml(rows) {
-        updatePreview();
-        var canvas = byId('zl_canvas');
-        if (!canvas) {
-            return '';
-        }
-        var layout = readLayout();
-        var width = Math.max(200, layout.width || 800);
-        var height = Math.max(40, layout.height || 140);
-        var dpi = parseInt(layout.printer_dpi, 10) || 203;
-        var widthMm = (width / dpi * 25.4);
-        var heightMm = (height / dpi * 25.4);
-        var scale = (widthMm * 96 / 25.4) / width;
-        var pages = '';
-        var row;
-        for (row = 0; row < rows; row++) {
-            var clone = canvas.cloneNode(true);
-            clone.querySelectorAll('.zl-grid, .zl-bound, .zl-coord').forEach(function (node) {
-                node.remove();
+    function requestZpl(isTest) {
+        return $.ajax({
+            url: boot.urls.zpl,
+            method: 'POST',
+            data: {
+                variation_id: isTest ? 0 : (state.product ? state.product.variation_id : 0),
+                quantity: text('zl_qty'),
+                price_group_id: text('zl_price_group'),
+                test: isTest ? 1 : 0,
+                layout: readLayout()
+            }
+        });
+    }
+
+    function sendRaw(zpl, printerName) {
+        return loadQz()
+            .then(function () {
+                return withTimeout(connectQz(), 8000);
+            })
+            .then(function () {
+                return choosePrinter(printerName);
+            })
+            .then(function (printer) {
+                setStatus('Sending ZPL to ' + printer + '…');
+                var config = window.qz.configs.create(printer, {
+                    copies: 1,
+                    jobName: 'VKPOS 30x15 labels'
+                });
+                return window.qz.print(config, [{
+                    type: 'raw',
+                    format: 'plain',
+                    data: zpl
+                }]);
             });
-            clone.style.transform = 'none';
-            clone.style.border = 'none';
-            clone.style.width = width + 'px';
-            clone.style.height = height + 'px';
-            clone.classList.remove('is-coords');
-            pages += '<div class="zl-sheet-page" style="width:' + widthMm.toFixed(2) + 'mm;height:' + heightMm.toFixed(2) + 'mm;overflow:hidden;page-break-after:always;break-after:page;">' +
-                '<div style="width:' + width + 'px;height:' + height + 'px;transform:scale(' + scale + ');transform-origin:top left;">' +
-                clone.outerHTML +
-                '</div></div>';
-        }
-        var wCss = widthMm.toFixed(2) + 'mm';
-        var hCss = heightMm.toFixed(2) + 'mm';
-        return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print Labels</title>' +
-            '<link rel="stylesheet" href="' + zebraStylesheetHref() + '">' +
-            '<style>' +
-            '@page { size: ' + wCss + ' ' + hCss + '; margin: 0; }' +
-            'html, body { margin: 0; padding: 0; background: #fff; }' +
-            '@media print { html, body { margin: 0 !important; padding: 0 !important; } .zl-sheet-page:last-child { page-break-after: auto; break-after: auto; } }' +
-            '</style></head><body>' + pages + '</body></html>';
     }
 
-    function printLabels() {
+    function lockPrint(locked) {
+        ['zl_print', 'zl_test_print', 'zl_view_zpl'].forEach(function (id) {
+            var node = byId(id);
+            if (node) {
+                node.disabled = locked;
+            }
+        });
+    }
+
+    function finishPrint() {
+        state.printing = false;
+        lockPrint(false);
+    }
+
+    function runPrint(isTest) {
         if (state.printing) {
             return;
         }
+        var problem = isTest ? quantityProblem() : clientPrintError();
+        if (!problem && isTest && !text('zl_printer_name').trim()) {
+            problem = 'Select a printer before printing.';
+        }
+        if (problem) {
+            setStatus(problem, 'error');
+            return;
+        }
+        state.printing = true;
+        lockPrint(true);
+        setStatus(isTest ? 'Preparing test ZPL…' : 'Preparing ZPL…');
+        requestZpl(isTest).done(function (res) {
+            if (res.warnings && res.warnings.length) {
+                showWarnings(res.warnings);
+            }
+            setStatus('Connecting to QZ Tray…');
+            sendRaw(res.zpl, res.printer_name).then(function () {
+                var done = res.message || 'Printed.';
+                setStatus(done, 'ok');
+                if (window.toastr) {
+                    toastr.success(done);
+                }
+            }).catch(function (err) {
+                setStatus(printerMessage(err), 'error');
+            }).then(finishPrint);
+        }).fail(function (xhr) {
+            finishPrint();
+            setStatus(readError(xhr), 'error');
+        });
+    }
+
+    function showZpl(zpl) {
+        var modal = byId('zl_zpl_modal');
+        var pre = byId('zl_zpl_text');
+        if (!modal || !pre) {
+            return;
+        }
+        pre.textContent = zpl || '';
+        modal.hidden = false;
+    }
+
+    function closeZpl() {
+        var modal = byId('zl_zpl_modal');
+        if (modal) {
+            modal.hidden = true;
+        }
+    }
+
+    function viewZpl() {
         var problem = clientPrintError();
         if (problem) {
             setStatus(problem, 'error');
             return;
         }
-        if (!window.LabelPrintEngine || typeof window.LabelPrintEngine.openPrintDocument !== 'function') {
-            setStatus('The label print function is not ready yet. Reload the page and try again.', 'error');
-            return;
-        }
-        var rows = parseInt(text('zl_qty'), 10);
-        var docHtml = buildZebraPrintHtml(rows);
-        if (!docHtml) {
-            setStatus('The label preview is not ready yet.', 'error');
-            return;
-        }
-        var button = byId('zl_print');
-        state.printing = true;
-        button.disabled = true;
-        var original = button.innerHTML;
-        button.textContent = 'Printing…';
-        var opened = window.LabelPrintEngine.openPrintDocument(docHtml, true);
-        state.printing = false;
-        button.disabled = false;
-        button.innerHTML = original;
-        if (!opened) {
-            setStatus('Pop-up blocked. Allow pop-ups for this site to print labels.', 'error');
-            return;
-        }
-        var labels = rows * 3;
-        var done = 'Print dialog opened for ' + rows + (rows === 1 ? ' row' : ' rows') + ' (' + labels + ' labels). Choose the Zebra printer, scale 100%, margins none.';
-        setStatus(done, 'ok');
-        if (window.toastr) {
-            toastr.success(done);
-        }
+        setStatus('Building ZPL…');
+        requestZpl(false).done(function (res) {
+            showZpl(res.zpl);
+            if (res.warnings && res.warnings.length) {
+                showWarnings(res.warnings);
+            }
+            setStatus('ZPL ready. Nothing was sent to the printer.', 'ok');
+        }).fail(function (xhr) {
+            setStatus(readError(xhr), 'error');
+        });
+    }
+
+    function detectPrinter() {
+        setStatus('Looking for the ZD220…');
+        loadQz().then(function () {
+            return withTimeout(connectQz(), 8000);
+        }).then(function () {
+            return choosePrinter(text('zl_printer_name').trim());
+        }).then(function (name) {
+            setVal('zl_printer_name', name);
+            setStatus('Printer ready: ' + name + '.', 'ok');
+        }).catch(function (err) {
+            setStatus(printerMessage(err), 'error');
+        });
+    }
+
+    function printLabels() {
+        runPrint(false);
     }
 
     function showMode(mode) {
@@ -1025,6 +1362,9 @@
             var step = (event.shiftKey ? 10 : 1) * parseInt(btn.getAttribute('data-step'), 10);
             input.value = (parseFloat(input.value) || 0) + step;
             state.barcodeKey = '';
+            if (input.id === 'zl_barcode_height') {
+                reflowStack();
+            }
             updatePreview();
         });
         workspace.addEventListener('keydown', function (event) {
@@ -1058,11 +1398,14 @@
                 updateQuantitySummary();
                 return;
             }
-            if (id === 'zl_profile_name' || id === 'zl_search') {
+            if (id === 'zl_profile_name' || id === 'zl_search' || id === 'zl_sku_input') {
                 return;
             }
             if (id === 'zl_barcode_width' || id === 'zl_barcode_height') {
                 state.barcodeKey = '';
+            }
+            if (id === 'zl_barcode_height') {
+                reflowStack();
             }
             updatePreview();
         });
@@ -1111,6 +1454,48 @@
         byId('zl_reset').addEventListener('click', resetAlignment);
         byId('zl_print').addEventListener('click', printLabels);
         byId('zl_print_preview').addEventListener('click', openPrintPreview);
+        byId('zl_test_print').addEventListener('click', function () { runPrint(true); });
+        byId('zl_view_zpl').addEventListener('click', viewZpl);
+        byId('zl_detect_printer').addEventListener('click', detectPrinter);
+        byId('zl_zpl_close').addEventListener('click', closeZpl);
+        byId('zl_printer_settings_btn').addEventListener('click', function () {
+            var panel = byId('zl_printer_settings');
+            if (panel) {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+        byId('zl_zpl_modal').addEventListener('click', function (event) {
+            if (event.target === byId('zl_zpl_modal')) {
+                closeZpl();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeZpl();
+            }
+        });
+        byId('zl_sku_edit').addEventListener('click', openSkuEditor);
+        byId('zl_sku_save').addEventListener('click', saveSku);
+        byId('zl_sku_cancel').addEventListener('click', function () {
+            if (state.skuSaving) {
+                return;
+            }
+            closeSkuEditor();
+            renderProduct(false);
+        });
+        byId('zl_sku_input').addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                saveSku();
+            }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                if (!state.skuSaving) {
+                    closeSkuEditor();
+                    renderProduct(false);
+                }
+            }
+        });
         byId('zl_mode_zebra').addEventListener('click', function () { showMode('zebra'); });
         byId('zl_mode_sheet').addEventListener('click', function () { showMode('sheet'); });
         window.addEventListener('resize', fitPreview);

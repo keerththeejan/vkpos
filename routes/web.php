@@ -257,6 +257,7 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::get('/labels/add-product-row', [LabelsController::class, 'addProductRow']);
     Route::get('/labels/preview', [LabelsController::class, 'preview']);
     Route::get('/labels/zebra/product/{variationId}', [LabelZebraController::class, 'product']);
+    Route::post('/labels/zebra/product/{variationId}/barcode', [LabelZebraController::class, 'updateBarcode']);
     Route::post('/labels/zebra/profiles', [LabelZebraController::class, 'store']);
     Route::post('/labels/zebra/profiles/{id}', [LabelZebraController::class, 'update']);
     Route::post('/labels/zebra/profiles/{id}/rename', [LabelZebraController::class, 'rename']);

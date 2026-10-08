@@ -71,6 +71,7 @@ class LabelsController extends Controller
         $zebra_queue = collect();
         $zebra_ready = false;
         $zebra_defaults = LabelPrintProfile::defaultAttributes();
+        $zebra_media = app(\App\Services\ZebraLabelGeometry::class)->previewPayload();
 
         try {
             $label_profiles = LabelPrintProfile::ensureDefaultForBusiness(
@@ -124,7 +125,8 @@ class LabelsController extends Controller
                 'zebra_product',
                 'zebra_queue',
                 'zebra_ready',
-                'zebra_defaults'
+                'zebra_defaults',
+                'zebra_media'
             ));
     }
 

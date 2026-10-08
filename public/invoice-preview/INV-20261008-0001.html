@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice INV-20261008-0001 · VK NETWORK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0c2340;
+    --blue: #163e7a;
+    --ink: #142033;
+    --muted: #5c6d80;
+    --line: #e3eaf2;
+    --wash: #f5f8fc;
+    --paper: #ffffff;
+    --warm: #7a4e12;
+    --warm-bg: #fbf6ee;
+  }
+
+  * { box-sizing: border-box; }
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #e6edf5;
+    color: var(--ink);
+    font-family: Inter, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    margin: 12px auto;
+    background: var(--paper);
+    padding: 11mm 12mm 8.5mm;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 36px rgba(12, 35, 64, 0.14);
+    overflow: hidden;
+  }
+
+  .noprint {
+    width: 210mm;
+    margin: 14px auto 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .noprint button {
+    font-family: inherit;
+    background: var(--navy);
+    color: #fff;
+    border: 0;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Header */
+  .header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    column-gap: 4.2mm;
+    align-items: center;
+  }
+
+  .logo {
+    height: 15.2mm;
+    width: auto;
+    display: block;
+  }
+
+  .brand-name {
+    margin: 0;
+    font-size: 15pt;
+    line-height: 1.05;
+    font-weight: 700;
+    letter-spacing: 0.045em;
+    color: var(--navy);
+  }
+
+  .brand-lines {
+    margin: 1.15mm 0 0;
+    font-size: 8pt;
+    line-height: 1.38;
+    font-weight: 500;
+    color: #3a4c60;
+  }
+
+  .brand-tag {
+    color: var(--blue);
+    font-weight: 600;
+  }
+
+  .contacts {
+    display: flex;
+    flex-direction: column;
+    gap: 1.15mm;
+  }
+
+  .contacts div {
+    display: flex;
+    align-items: center;
+    gap: 1.7mm;
+    font-size: 8.4pt;
+    font-weight: 500;
+    color: #1c2c3e;
+    line-height: 1;
+  }
+
+  .contacts svg {
+    width: 3.4mm;
+    height: 3.4mm;
+    flex: 0 0 auto;
+  }
+
+  .rule {
+    height: 0;
+    border: 0;
+    border-top: 1.6px solid var(--blue);
+    margin: 3.6mm 0 0;
+  }
+
+  /* Title */
+  .hero {
+    margin-top: 4.4mm;
+    display: grid;
+    grid-template-columns: 1fr 78mm;
+    gap: 6mm;
+    align-items: center;
+  }
+
+  .titleline {
+    display: flex;
+    align-items: center;
+    gap: 3.4mm;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 24pt;
+    line-height: 0.95;
+    font-weight: 700;
+    letter-spacing: 0.055em;
+    color: var(--navy);
+  }
+
+  .vbar {
+    width: 1px;
+    height: 7.2mm;
+    background: #c5d0de;
+  }
+
+  .invno {
+    font-size: 11.5pt;
+    font-weight: 600;
+    color: var(--blue);
+    letter-spacing: 0.01em;
+  }
+
+  .subtitle {
+    margin-top: 2.1mm;
+    display: flex;
+    align-items: center;
+    gap: 2.2mm;
+    font-size: 9.5pt;
+    font-weight: 500;
+    color: #3e5166;
+  }
+
+  .dot {
+    width: 1.05mm;
+    height: 1.05mm;
+    border-radius: 50%;
+    background: #9aabbe;
+  }
+
+  table.meta {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-radius: 2mm;
+    overflow: hidden;
+  }
+
+  table.meta th,
+  table.meta td {
+    padding: 1.25mm 3mm;
+    font-size: 8pt;
+    border-bottom: 1px solid #e8eef5;
+    vertical-align: middle;
+  }
+
+  table.meta tr:last-child th,
+  table.meta tr:last-child td { border-bottom: 0; }
+
+  table.meta th {
+    width: 34mm;
+    text-align: left;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  table.meta td {
+    text-align: right;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 7pt;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    color: #8a6230;
+    background: #f8f1de;
+    border: 1px solid #ead9b4;
+    border-radius: 99px;
+    padding: 0.45mm 2mm 0.55mm;
+    line-height: 1.35;
+  }
+
+  /* Cards */
+  .cards {
+    margin-top: 4mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3.6mm;
+  }
+
+  .card {
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-radius: 2mm;
+    padding: 2.6mm 3.6mm 2.8mm;
+    min-height: 16.5mm;
+  }
+
+  .card h2 {
+    margin: 0 0 1.8mm;
+    display: flex;
+    align-items: center;
+    gap: 1.8mm;
+    font-size: 7.3pt;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blue);
+  }
+
+  .ico {
+    width: 5.2mm;
+    height: 5.2mm;
+    border-radius: 50%;
+    background: #e7f0fa;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  .ico svg { width: 3mm; height: 3mm; display: block; }
+
+  .card .name {
+    font-size: 11pt;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  .card .sub {
+    margin-top: 0.7mm;
+    font-size: 9pt;
+    font-weight: 500;
+    color: #3e5166;
+  }
+
+  .card .empty {
+    font-size: 12pt;
+    font-weight: 500;
+    color: #8b9aab;
+    line-height: 1;
+  }
+
+  /* Items */
+  .kicker {
+    margin: 4.2mm 0 1.5mm;
+    text-align: right;
+    font-size: 7.4pt;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+
+  table.items {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+  }
+
+  table.items col.d { width: auto; }
+  table.items col.q { width: 12mm; }
+  table.items col.u { width: 26mm; }
+  table.items col.c { width: 24mm; }
+  table.items col.t { width: 16mm; }
+  table.items col.n { width: 26mm; }
+
+  table.items thead th {
+    background: var(--navy);
+    color: #fff;
+    font-size: 7.2pt;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    padding: 2.15mm 2.2mm;
+    text-align: right;
+  }
+
+  table.items thead th:first-child {
+    text-align: left;
+    border-radius: 1.4mm 0 0 0;
+    padding-left: 2.8mm;
+  }
+
+  table.items thead th:nth-child(2) { text-align: center; }
+
+  table.items thead th:last-child {
+    border-radius: 0 1.4mm 0 0;
+    padding-right: 2.8mm;
+  }
+
+  table.items td {
+    padding: 1.9mm 2.2mm;
+    font-size: 8.4pt;
+    line-height: 1.32;
+    vertical-align: middle;
+    border-bottom: 1px solid #e7eef5;
+    color: #1a2838;
+  }
+
+  table.items tbody tr:nth-child(even) td { background: #f7fafc; }
+
+  table.items tbody tr:last-child td { border-bottom: 1px solid #d5e0eb; }
+
+  table.items td.desc { padding-left: 2.8mm; font-weight: 400; }
+  table.items td.qty { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  table.items td.num {
+    text-align: right;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  table.items td.net {
+    padding-right: 2.8mm;
+    font-weight: 600;
+  }
+
+  .kind {
+    display: inline-block;
+    margin-right: 1.4mm;
+    padding: 0.15mm 1.35mm 0.25mm;
+    font-size: 6.8pt;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--blue);
+    background: #e7f0fa;
+    border-radius: 0.7mm;
+    line-height: 1.35;
+    vertical-align: 0.2mm;
+  }
+
+  /* Settlement */
+  .settle {
+    margin-top: 4.2mm;
+    display: grid;
+    grid-template-columns: 1fr 82mm;
+    gap: 5mm;
+    align-items: stretch;
+  }
+
+  .words {
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-left: 2.4px solid var(--blue);
+    border-radius: 0 1.6mm 1.6mm 0;
+    padding: 3.2mm 3.8mm 3.4mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .words .label {
+    font-size: 7.1pt;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blue);
+  }
+
+  .words p {
+    margin: 1.5mm 0 0;
+    font-size: 10.2pt;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--ink);
+  }
+
+  .totals {
+    border: 1px solid var(--line);
+    border-radius: 1.6mm;
+    overflow: hidden;
+  }
+
+  .totals .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4mm;
+    padding: 1.25mm 3.2mm;
+    font-size: 8.5pt;
+    border-bottom: 1px solid #eef2f6;
+    background: #fff;
+  }
+
+  .totals .row span:first-child {
+    font-weight: 500;
+    color: #314256;
+  }
+
+  .totals .row span:last-child {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 28mm;
+    text-align: right;
+    color: var(--ink);
+  }
+
+  .totals .grand {
+    background: var(--navy);
+    border-bottom: 0;
+    padding: 1.85mm 3.2mm;
+  }
+
+  .totals .grand span {
+    color: #fff !important;
+    font-weight: 700;
+    font-size: 10.4pt;
+  }
+
+  .totals .balance {
+    background: var(--warm-bg);
+    border-bottom: 0;
+    padding: 1.6mm 3.2mm;
+  }
+
+  .totals .balance span {
+    color: var(--warm) !important;
+    font-weight: 700;
+    font-size: 9.6pt;
+  }
+
+  /* Signatures */
+  .signs {
+    margin-top: auto;
+    padding-top: 4mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10mm;
+    align-items: end;
+  }
+
+  .sign-art {
+    min-height: 22mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: 1.4mm;
+  }
+
+  .stamp {
+    width: 42mm;
+    height: auto;
+    display: block;
+  }
+
+  .sig {
+    width: 30mm;
+    height: auto;
+    display: block;
+    margin-left: 1mm;
+  }
+
+  .sign-line {
+    margin-top: 1.2mm;
+    border-top: 1px solid #9aabbe;
+    width: 62mm;
+  }
+
+  .sign-label {
+    margin-top: 1.3mm;
+    font-size: 7pt;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  /* Footer */
+  .foot {
+    margin-top: 3.2mm;
+    padding-top: 2.6mm;
+    border-top: 1.5px solid var(--navy);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4mm;
+    align-items: end;
+  }
+
+  .foot-contacts {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    column-gap: 5.5mm;
+    row-gap: 1.15mm;
+    align-items: center;
+    font-size: 8pt;
+    font-weight: 500;
+    color: #243446;
+  }
+
+  .foot-contacts span {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.4mm;
+  }
+
+  .foot-contacts svg {
+    width: 3.1mm;
+    height: 3.1mm;
+  }
+
+  .foot-brand {
+    margin-top: 1.5mm;
+    font-size: 7.3pt;
+    line-height: 1.4;
+    font-weight: 500;
+    color: #5c6d80;
+  }
+
+  .codes {
+    display: flex;
+    align-items: flex-end;
+    gap: 2.6mm;
+  }
+
+  .codes .bc {
+    width: 44mm;
+    height: auto;
+    display: block;
+    image-rendering: crisp-edges;
+  }
+
+  .codes .qr {
+    width: 15.5mm;
+    height: 15.5mm;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  @media print {
+    html, body { background: #fff; }
+    .sheet {
+      margin: 0;
+      box-shadow: none;
+    }
+    .noprint { display: none !important; }
+    * {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="noprint">
+    <button type="button" onclick="window.print()">Print / Save PDF</button>
+  </div>
+
+  <article class="sheet">
+    <header class="header">
+      <img class="logo" src="assets/logo.png" alt="VK NETWORK">
+      <div>
+        <p class="brand-name">VK NETWORK</p>
+        <p class="brand-lines">
+          Software Development | Hardware Solutions<br>
+          CCTV Surveillance | Network Infrastructure<br>
+          <span class="brand-tag">Connecting You to a Smarter Digital World</span>
+        </p>
+      </div>
+      <div class="contacts">
+        <div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h3l1.5 3.5-2 1.2a12 12 0 0 0 5.8 5.8l1.2-2 3.5 1.5v3A2 2 0 0 1 17.5 18 14.5 14.5 0 0 1 5 5.5a2 2 0 0 1 1.5-2z"/></svg>
+          <span>+94 70 588 6782</span>
+        </div>
+        <div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1.6"/><path d="m4 7 8 6 8-6"/></svg>
+          <span>info@vkitnet.info</span>
+        </div>
+        <div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="M3.8 12h16.4M12 3.8c2.2 2.4 3.3 5.2 3.3 8.2s-1.1 5.8-3.3 8.2c-2.2-2.4-3.3-5.2-3.3-8.2s1.1-5.8 3.3-8.2z"/></svg>
+          <span>www.vkitnet.info</span>
+        </div>
+      </div>
+    </header>
+
+    <hr class="rule">
+
+    <section class="hero">
+      <div>
+        <div class="titleline">
+          <h1>INVOICE</h1>
+          <span class="vbar" aria-hidden="true"></span>
+          <div class="invno">INV-20261008-0001</div>
+        </div>
+        <div class="subtitle">
+          <span>2026-10-08</span>
+          <span class="dot" aria-hidden="true"></span>
+          <span>wingzstationery</span>
+        </div>
+      </div>
+      <table class="meta">
+        <tbody>
+          <tr>
+            <th>Invoice Number</th>
+            <td>INV-20261008-0001</td>
+          </tr>
+          <tr>
+            <th>Invoice Date</th>
+            <td>2026-10-08</td>
+          </tr>
+          <tr>
+            <th>Due Date</th>
+            <td>2026-11-07</td>
+          </tr>
+          <tr>
+            <th>Payment Status</th>
+            <td><span class="badge">PARTIALLY PAID</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="cards">
+      <div class="card">
+        <h2>
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19.2c.8-3 3.2-4.7 6.5-4.7s5.7 1.7 6.5 4.7"/></svg>
+          </span>
+          Customer Details
+        </h2>
+        <div class="name">wingzstationery</div>
+        <div class="sub">+9609964196</div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z"/><circle cx="12" cy="11" r="1.7"/></svg>
+          </span>
+          Billing Address
+        </h2>
+        <div class="empty">—</div>
+      </div>
+    </section>
+
+    <div class="kicker">All amounts in Sri Lankan Rupees (LKR)</div>
+
+    <table class="items">
+      <colgroup>
+        <col class="d">
+        <col class="q">
+        <col class="u">
+        <col class="c">
+        <col class="t">
+        <col class="n">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>DESCRIPTION</th>
+          <th>QTY</th>
+          <th>UNIT PRICE</th>
+          <th>DISCOUNT</th>
+          <th>TAX</th>
+          <th>NET</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="desc"><span class="kind">Service</span>VK POS allows users to add, update, manage, and organize products with product names, SKU/barcodes, selling prices, purchase prices, units, categories, brands, variations, warranties, selling price groups, opening stock, and barcode labels, with stock quantities updated automatically through purchases, sales, returns, transfers, and adjustments.</td>
+          <td class="qty">1</td>
+          <td class="num">130,000.00</td>
+          <td class="num">20,000.00</td>
+          <td class="num">0.00</td>
+          <td class="num net">110,000.00</td>
+        </tr>
+        <tr>
+          <td class="desc"><span class="kind">Service</span>Hosting &amp; Subdomain: VK Network provides reliable hosting with a dedicated subdomain, cPanel control panel, database management, SSL support, email configuration, backups, and website/application deployment for VK POS and other business systems.</td>
+          <td class="qty">1</td>
+          <td class="num">35,000.00</td>
+          <td class="num">35,000.00</td>
+          <td class="num">0.00</td>
+          <td class="num net">0.00</td>
+        </tr>
+        <tr>
+          <td class="desc"><span class="kind">Service</span>Data Entry</td>
+          <td class="qty">7</td>
+          <td class="num">2,500.00</td>
+          <td class="num">1,500.00</td>
+          <td class="num">0.00</td>
+          <td class="num net">16,000.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <section class="settle">
+      <div class="words">
+        <div class="label">Amount in words</div>
+        <p>One Hundred and Twenty Six Thousand<br>Sri Lankan Rupees Only</p>
+      </div>
+      <div class="totals">
+        <div class="row"><span>Subtotal</span><span>182,500.00</span></div>
+        <div class="row"><span>Item Discount</span><span>56,500.00</span></div>
+        <div class="row"><span>Invoice Discount</span><span>0.00</span></div>
+        <div class="row"><span>Tax</span><span>0.00</span></div>
+        <div class="row grand"><span>Grand Total</span><span>126,000.00</span></div>
+        <div class="row"><span>Paid</span><span>95,000.00</span></div>
+        <div class="row balance"><span>Balance</span><span>31,000.00</span></div>
+      </div>
+    </section>
+
+    <section class="signs">
+      <div>
+        <div class="sign-art">
+          <img class="stamp" src="assets/stamp.png" alt="VK IT Network, Kilinochchi, Sri Lanka, 070 588 6782">
+          <img class="sig" src="assets/signature.png" alt="Authorized signature">
+        </div>
+        <div class="sign-line"></div>
+        <div class="sign-label">AUTHORIZED SIGNATURE</div>
+      </div>
+      <div>
+        <div class="sign-art"></div>
+        <div class="sign-line"></div>
+        <div class="sign-label">CUSTOMER SIGNATURE</div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div>
+        <div class="foot-contacts">
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z"/><circle cx="12" cy="11" r="1.7"/></svg>
+            Kilinochchi, Sri Lanka
+          </span>
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h3l1.5 3.5-2 1.2a12 12 0 0 0 5.8 5.8l1.2-2 3.5 1.5v3A2 2 0 0 1 17.5 18 14.5 14.5 0 0 1 5 5.5a2 2 0 0 1 1.5-2z"/></svg>
+            +94 70 588 6782
+          </span>
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1.6"/><path d="m4 7 8 6 8-6"/></svg>
+            info@vkitnet.info
+          </span>
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#163e7a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="M3.8 12h16.4M12 3.8c2.2 2.4 3.3 5.2 3.3 8.2s-1.1 5.8-3.3 8.2c-2.2-2.4-3.3-5.2-3.3-8.2s1.1-5.8 3.3-8.2z"/></svg>
+            www.vkitnet.info
+          </span>
+        </div>
+        <div class="foot-brand">
+          VK NETWORK | Software Development | Hardware Solutions<br>
+          CCTV Surveillance | Network Infrastructure
+        </div>
+      </div>
+      <div class="codes">
+        <img class="bc" src="assets/barcode.png" alt="Barcode INV-20261008-0001">
+        <img class="qr" src="assets/qr.png" alt="QR code for www.vkitnet.info">
+      </div>
+    </footer>
+  </article>
+</body>
+</html>

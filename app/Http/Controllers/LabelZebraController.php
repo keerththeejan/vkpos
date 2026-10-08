@@ -35,6 +35,34 @@ class LabelZebraController extends Controller
         }
     }
 
+    public function updateBarcode(Request $request, $variationId)
+    {
+        $this->authorizeLabels();
+        if (! auth()->user()->can('product.update')) {
+            return $this->fail('You are not allowed to update this product.', 403);
+        }
+
+        try {
+            $product = $this->zebra->updateBarcode(
+                $this->businessId($request),
+                (int) $variationId,
+                (string) $request->input('barcode', '')
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Barcode / SKU updated successfully.',
+                'product' => $product,
+            ]);
+        } catch (InvalidArgumentException $e) {
+            return $this->fail($e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            \Log::error('Zebra barcode update failed: '.$e->getMessage());
+
+            return $this->fail('Unable to update Barcode / SKU. Please try again.', 500);
+        }
+    }
+
     public function store(Request $request)
     {
         $this->authorizeLabels();
@@ -217,28 +245,39 @@ class LabelZebraController extends Controller
         try {
             $businessId = $this->businessId($request);
             $rows = $this->zebra->rowsFromRequest($request->input('quantity'));
-            $priceGroupId = $request->filled('price_group_id') ? (int) $request->input('price_group_id') : null;
-            $product = $this->zebra->productPayload($businessId, (int) $request->input('variation_id'), $priceGroupId);
-
-            if (! empty($product['barcode_missing']) || $product['barcode'] === '') {
-                throw new InvalidArgumentException('Barcode is missing for this product.');
-            }
-
             $layout = $this->zebra->layoutFromRequest($request->input('layout', []));
-            $zpl = $this->zebra->buildZpl(
-                $layout,
-                $product['barcode'],
-                $product['price'],
-                (string) $layout['vertical_text'],
-                $rows,
-                (string) ($product['name'] ?? '')
-            );
+            if ($request->boolean('test')) {
+                $job = $this->zebra->buildTestJob($layout, $rows);
+                $product = null;
+            } else {
+                $priceGroupId = $request->filled('price_group_id') ? (int) $request->input('price_group_id') : null;
+                $product = $this->zebra->productPayload($businessId, (int) $request->input('variation_id'), $priceGroupId);
+
+                if (! empty($product['barcode_missing']) || $product['barcode'] === '') {
+                    throw new InvalidArgumentException('Barcode is missing for this product.');
+                }
+
+                $job = $this->zebra->buildJob(
+                    $layout,
+                    $product['barcode'],
+                    $product['price'],
+                    (string) $layout['vertical_text'],
+                    $rows,
+                    (string) ($product['name'] ?? '')
+                );
+            }
             $labels = $rows * 3;
+            $noun = $rows === 1 ? 'row' : 'rows';
+            $message = $request->boolean('test')
+                ? 'Test print: '.$rows.' '.$noun.' ('.$labels.' labels) on '.$layout['printer_name'].'.'
+                : 'Sending '.$rows.' '.$noun.' ('.$labels.' labels) to '.$layout['printer_name'].'.';
 
             return response()->json([
                 'success' => true,
-                'message' => 'Sending '.$rows.' '.($rows === 1 ? 'row' : 'rows').' ('.$labels.' labels) to '.$layout['printer_name'].'.',
-                'zpl' => $zpl,
+                'message' => $message,
+                'zpl' => $job['zpl'],
+                'warnings' => $job['warnings'],
+                'media' => $job['media'],
                 'printer_name' => $layout['printer_name'],
                 'rows' => $rows,
                 'labels' => $labels,

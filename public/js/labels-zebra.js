@@ -1486,10 +1486,12 @@
         byId('zl_sku_input').addEventListener('keydown', function (event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
+                event.stopPropagation();
                 saveSku();
             }
             if (event.key === 'Escape') {
                 event.preventDefault();
+                event.stopPropagation();
                 if (!state.skuSaving) {
                     closeSkuEditor();
                     renderProduct(false);

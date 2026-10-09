@@ -23,6 +23,10 @@ class DashboardAnalyticsController extends Controller
 
     protected $productUtil;
 
+    protected $resultMemo = [];
+
+    protected $alertRows;
+
     public function __construct(TransactionUtil $transactionUtil, ProductUtil $productUtil)
     {
         $this->transactionUtil = $transactionUtil;
@@ -62,31 +66,12 @@ class DashboardAnalyticsController extends Controller
         }
 
         $canValue = auth()->user()->can('view_product_stock_value');
-        $filters = [];
-        if (! empty($categoryId)) {
-            $filters['category_id'] = $categoryId;
-        }
         $stockPermitted = $locationIds === null ? 'all' : $locationIds;
         $stockLocation = is_array($locationIds) && count($locationIds) === 1 ? $locationIds[0] : null;
-
-        $cost = (float) $this->transactionUtil->getOpeningClosingStock(
-            $businessId,
-            $end,
-            $stockLocation,
-            false,
-            false,
-            $filters,
-            $stockPermitted
-        );
-        $potential = (float) $this->transactionUtil->getOpeningClosingStock(
-            $businessId,
-            $end,
-            $stockLocation,
-            false,
-            true,
-            $filters,
-            $stockPermitted
-        );
+        $snapshot = $this->stockSnapshot($businessId, $end, $stockLocation, $stockPermitted, $categoryId);
+        $cost = $snapshot['cost'];
+        $potential = $snapshot['potential'];
+        $alerts = $this->alertRows($businessId, $stockPermitted);
 
         $today = Carbon::now()->toDateString();
         $monthStart = Carbon::now()->startOfMonth()->toDateString();
@@ -112,17 +97,17 @@ class DashboardAnalyticsController extends Controller
             'end' => $end,
             'category_note' => empty($categoryId) ? '' : 'The category filter applies to stock, sales, profit, and product lists. Purchases, cash, bank, dues, and expenses stay at branch level.',
             'stock' => [
-                'quantity' => round($this->layerQuantity($businessId, $end, $stockLocation, $stockPermitted, $categoryId), 4),
+                'quantity' => round($snapshot['quantity'], 4),
                 'live_quantity' => round($this->liveQuantity($businessId, $stockLocation, $stockPermitted, $categoryId), 4),
                 'cost' => $canValue ? round($cost, 4) : null,
                 'potential_sales' => $canValue ? round($potential, 4) : null,
-                'low_stock' => $this->lowStockCount($businessId, $stockPermitted),
+                'low_stock' => $alerts->count(),
                 'out_of_stock' => $this->outOfStockCount($businessId, $locationIds, $categoryId),
                 'negative' => $this->negativeStockCount($businessId, $locationIds, $categoryId),
                 'can_value' => $canValue,
-                'branches' => $canValue ? $this->branchValues($businessId, $end, $locationIds, $filters, $stockPermitted) : [],
-                'categories' => $canValue ? $this->categoryValues($businessId, $end, $stockLocation, $stockPermitted, $categoryId, $cost) : [],
-                'low_stock_rows' => $this->lowStockRows($businessId, $stockPermitted),
+                'branches' => $canValue ? $this->branchValues($businessId, $locationIds, $snapshot['by_location']) : [],
+                'categories' => $canValue ? $this->categoryValues($businessId, $categoryId, $cost, $snapshot['by_category']) : [],
+                'low_stock_rows' => $this->lowStockRows($alerts),
             ],
             'sales' => [
                 'today' => $salesToday['net'],
@@ -182,6 +167,18 @@ class DashboardAnalyticsController extends Controller
 
     protected function sales($businessId, $start, $end, $locationId, $permitted, $categoryId)
     {
+        $memoKey = implode('|', [
+            'sales',
+            $start,
+            $end,
+            (string) $locationId,
+            is_array($permitted) ? implode(',', $permitted) : (string) $permitted,
+            (string) $categoryId,
+        ]);
+        if (array_key_exists($memoKey, $this->resultMemo)) {
+            return $this->resultMemo[$memoKey];
+        }
+
         if (! empty($categoryId)) {
             $row = $this->sellLineQuery($businessId, $start, $end, $locationId, $permitted, $categoryId)
                 ->select(
@@ -193,7 +190,7 @@ class DashboardAnalyticsController extends Controller
             $net = round((float) ($row->net ?? 0), 4);
             $gross = round((float) ($row->gross ?? 0), 4);
 
-            return [
+            return $this->resultMemo[$memoKey] = [
                 'net' => $net,
                 'gross' => $gross,
                 'returns' => round($gross - $net, 4),
@@ -220,7 +217,7 @@ class DashboardAnalyticsController extends Controller
             ->whereDate('transaction_date', '<=', $end);
         $this->limitTransaction($countQuery, $locationId, $permitted);
 
-        return [
+        return $this->resultMemo[$memoKey] = [
             'net' => round($gross - $returnTotal, 4),
             'gross' => $gross,
             'returns' => $returnTotal,
@@ -230,6 +227,17 @@ class DashboardAnalyticsController extends Controller
 
     protected function purchases($businessId, $start, $end, $locationId, $permitted)
     {
+        $memoKey = implode('|', [
+            'purchases',
+            $start,
+            $end,
+            (string) $locationId,
+            is_array($permitted) ? implode(',', $permitted) : (string) $permitted,
+        ]);
+        if (array_key_exists($memoKey, $this->resultMemo)) {
+            return $this->resultMemo[$memoKey];
+        }
+
         $purchase = $this->transactionUtil->getPurchaseTotals($businessId, $start, $end, $locationId, null, $permitted);
         $returns = $this->transactionUtil->getTransactionTotals(
             $businessId,
@@ -243,7 +251,7 @@ class DashboardAnalyticsController extends Controller
         $gross = round((float) ($purchase['total_purchase_inc_tax'] ?? 0), 4);
         $returnTotal = round((float) ($returns['total_purchase_return_inc_tax'] ?? 0), 4);
 
-        return [
+        return $this->resultMemo[$memoKey] = [
             'gross' => $gross,
             'returns' => $returnTotal,
             'net' => round($gross - $returnTotal, 4),
@@ -403,7 +411,83 @@ class DashboardAnalyticsController extends Controller
         return $totals;
     }
 
-    protected function branchValues($businessId, $end, $locationIds, array $filters, $permitted)
+    protected function stockSnapshot($businessId, $date, $locationId, $permitted, $categoryId)
+    {
+        $empty = [
+            'cost' => 0.0,
+            'potential' => 0.0,
+            'quantity' => 0.0,
+            'by_location' => [],
+            'by_category' => [],
+        ];
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
+            return $empty;
+        }
+
+        $sold = "(SELECT COALESCE(SUM(tspl.quantity - tspl.qty_returned), 0) FROM
+                            transaction_sell_lines_purchase_lines AS tspl
+                            JOIN transaction_sell_lines as tsl ON
+                            tspl.sell_line_id=tsl.id
+                            JOIN transactions as sale ON
+                            tsl.transaction_id=sale.id
+                            WHERE tspl.purchase_line_id = purchase_lines.id AND
+                            date(sale.transaction_date) <= '{$date}')";
+        $remaining = "(purchase_lines.quantity - purchase_lines.quantity_returned - purchase_lines.quantity_adjusted - {$sold})";
+        $costPrice = '(purchase_lines.purchase_price + COALESCE(purchase_lines.item_tax, 0))';
+
+        $query = PurchaseLine::join('transactions as purchase', 'purchase_lines.transaction_id', '=', 'purchase.id')
+            ->where('purchase.type', '!=', 'purchase_order')
+            ->where('purchase.business_id', $businessId)
+            ->leftJoin('variations as v', 'v.id', '=', 'purchase_lines.variation_id')
+            ->leftJoin('products as p', 'p.id', '=', 'purchase_lines.product_id')
+            ->whereRaw("date(purchase.transaction_date) <= '{$date}'");
+
+        if (! empty($categoryId)) {
+            $query->where('p.category_id', $categoryId);
+        }
+        if (! empty($permitted) && $permitted != 'all') {
+            $query->whereIn('purchase.location_id', is_array($permitted) ? $permitted : [$permitted]);
+        }
+        if (! empty($locationId)) {
+            $query->where('purchase.location_id', $locationId);
+        }
+
+        $rows = $query->groupBy('purchase.location_id', 'p.category_id')
+            ->select(
+                'purchase.location_id',
+                'p.category_id',
+                DB::raw("SUM({$remaining} * {$costPrice}) as cost"),
+                DB::raw("SUM({$remaining} * v.sell_price_inc_tax) as potential"),
+                DB::raw("SUM(IF(p.enable_stock = 1 AND p.is_inactive = 0, {$remaining}, 0)) as qty")
+            )
+            ->get();
+
+        $cost = 0.0;
+        $potential = 0.0;
+        $quantity = 0.0;
+        $byLocation = [];
+        $byCategory = [];
+        foreach ($rows as $row) {
+            $rowCost = (float) $row->cost;
+            $cost += $rowCost;
+            $potential += (float) $row->potential;
+            $quantity += (float) $row->qty;
+            $locationKey = (int) $row->location_id;
+            $byLocation[$locationKey] = ($byLocation[$locationKey] ?? 0) + $rowCost;
+            $categoryKey = $row->category_id === null ? 'none' : (string) (int) $row->category_id;
+            $byCategory[$categoryKey] = ($byCategory[$categoryKey] ?? 0) + $rowCost;
+        }
+
+        $empty['cost'] = $cost;
+        $empty['potential'] = $potential;
+        $empty['quantity'] = $quantity;
+        $empty['by_location'] = $byLocation;
+        $empty['by_category'] = $byCategory;
+
+        return $empty;
+    }
+
+    protected function branchValues($businessId, $locationIds, array $byLocation)
     {
         $query = BusinessLocation::where('business_id', $businessId)->orderBy('name');
         if (is_array($locationIds)) {
@@ -413,22 +497,14 @@ class DashboardAnalyticsController extends Controller
         foreach ($query->get(['id', 'name']) as $location) {
             $rows[] = [
                 'name' => $location->name,
-                'cost' => round((float) $this->transactionUtil->getOpeningClosingStock(
-                    $businessId,
-                    $end,
-                    $location->id,
-                    false,
-                    false,
-                    $filters,
-                    $permitted
-                ), 4),
+                'cost' => round((float) ($byLocation[$location->id] ?? 0), 4),
             ];
         }
 
         return $rows;
     }
 
-    protected function categoryValues($businessId, $end, $locationId, $permitted, $categoryId, $totalCost)
+    protected function categoryValues($businessId, $categoryId, $totalCost, array $byCategory)
     {
         if (! empty($categoryId)) {
             $category = Category::where('business_id', $businessId)->find($categoryId);
@@ -450,15 +526,7 @@ class DashboardAnalyticsController extends Controller
         $rows = [];
         $assigned = 0;
         foreach ($categories as $category) {
-            $cost = round((float) $this->transactionUtil->getOpeningClosingStock(
-                $businessId,
-                $end,
-                $locationId,
-                false,
-                false,
-                ['category_id' => $category->id],
-                $permitted
-            ), 4);
+            $cost = round((float) ($byCategory[(string) $category->id] ?? 0), 4);
             $assigned = round($assigned + $cost, 4);
             if ($cost != 0.0) {
                 $rows[] = ['name' => $category->name, 'cost' => $cost];
@@ -530,15 +598,19 @@ class DashboardAnalyticsController extends Controller
         return (float) $query->sum('variation_location_details.qty_available');
     }
 
-    protected function lowStockCount($businessId, $permitted)
+    protected function alertRows($businessId, $permitted)
     {
-        return (int) $this->productUtil->getProductAlert($businessId, $permitted)->get()->count();
+        if ($this->alertRows === null) {
+            $this->alertRows = $this->productUtil->getProductAlert($businessId, $permitted)->get();
+        }
+
+        return $this->alertRows;
     }
 
-    protected function lowStockRows($businessId, $permitted)
+    protected function lowStockRows($alerts)
     {
         $rows = [];
-        foreach ($this->productUtil->getProductAlert($businessId, $permitted)->limit(8)->get() as $row) {
+        foreach ($alerts->take(8) as $row) {
             $name = $row->product;
             if ($row->type !== 'single') {
                 $name .= ' - '.$row->product_variation.' - '.$row->variation;
@@ -556,27 +628,27 @@ class DashboardAnalyticsController extends Controller
 
     protected function outOfStockCount($businessId, $locationIds, $categoryId)
     {
+        if (is_array($locationIds) && count($locationIds) === 0) {
+            return 0;
+        }
+
+        $stock = DB::table('variation_location_details')
+            ->select('product_id', DB::raw('SUM(qty_available) as qty'))
+            ->groupBy('product_id');
+        if (is_array($locationIds)) {
+            $stock->whereIn('location_id', $locationIds);
+        }
+
         $query = Product::where('products.business_id', $businessId)
             ->where('products.enable_stock', 1)
-            ->where('products.is_inactive', 0);
+            ->where('products.is_inactive', 0)
+            ->leftJoinSub($stock, 'stock_qty', 'stock_qty.product_id', '=', 'products.id')
+            ->whereRaw('COALESCE(stock_qty.qty, 0) <= 0');
         if (! empty($categoryId)) {
             $query->where('products.category_id', $categoryId);
         }
 
-        $locationSql = '';
-        $bindings = [];
-        if (is_array($locationIds)) {
-            if (count($locationIds) === 0) {
-                return 0;
-            }
-            $locationSql = ' AND vld.location_id IN ('.implode(',', array_fill(0, count($locationIds), '?')).')';
-            $bindings = $locationIds;
-        }
-
-        return (int) $query->whereRaw(
-            '(SELECT COALESCE(SUM(vld.qty_available), 0) FROM variation_location_details vld WHERE vld.product_id = products.id'.$locationSql.') <= 0',
-            $bindings
-        )->count();
+        return (int) $query->count();
     }
 
     protected function negativeStockCount($businessId, $locationIds, $categoryId)

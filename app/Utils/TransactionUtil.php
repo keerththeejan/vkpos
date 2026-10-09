@@ -5326,6 +5326,8 @@ class TransactionUtil extends Util
                 'total' => '',
                 'payment_method' => ! empty($paymentTypes[$payment->method]) ? $paymentTypes[$payment->method] : '',
                 'payment_method_key' => $payment->method,
+                'transaction_id' => $payment->transaction_id,
+                'transaction_type' => $payment->transaction_type,
                 'debit' => in_array($payment->transaction_type, ['purchase', 'sell_return']) || ($payment->is_advance == 1 && $contact->type == 'supplier') || (in_array($payment->transaction_type, ['sell', 'purchase_return', 'opening_balance']) && $payment->is_return == 1) || $payment->payment_type == 'debit' ? $payment->amount : '',
                 'credit' => (in_array($payment->transaction_type, ['sell', 'purchase_return', 'opening_balance']) || ($payment->is_advance == 1 && in_array($contact->type, ['customer', 'both']))) && $payment->is_return == 0 || $payment->payment_type == 'credit' ? $payment->amount : '',
                 'others' => $note,

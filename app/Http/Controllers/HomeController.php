@@ -209,8 +209,15 @@ class HomeController extends Controller
 
         $common_settings = ! empty(session('business.common_settings')) ? session('business.common_settings') : [];
 
+        $analytics_categories = \App\Category::where('business_id', $business_id)
+            ->where('category_type', 'product')
+            ->where(function ($query) {
+                $query->whereNull('parent_id')->orWhere('parent_id', 0);
+            })
+            ->orderBy('name')
+            ->pluck('name', 'id');
 
-        return view('home.index', compact('sells_chart_1', 'sells_chart_2', 'widgets', 'all_locations', 'common_settings', 'is_admin'));
+        return view('home.index', compact('sells_chart_1', 'sells_chart_2', 'widgets', 'all_locations', 'common_settings', 'is_admin', 'analytics_categories'));
     }
 
     /**

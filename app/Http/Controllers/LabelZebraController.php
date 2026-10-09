@@ -240,10 +240,26 @@ class LabelZebraController extends Controller
 
     public function zpl(Request $request)
     {
+        return $this->composeTemporaryPrint($request);
+    }
+
+    public function temporaryPrint(Request $request)
+    {
+        return $this->composeTemporaryPrint($request);
+    }
+
+    /**
+     * Build ZPL from a copy of the submitted layout.
+     * This path never reads the layout back onto a LabelPrintProfile and never saves one.
+     */
+    private function composeTemporaryPrint(Request $request)
+    {
         $this->authorizeLabels();
 
         try {
             $businessId = $this->businessId($request);
+            $profileId = (int) $request->input('profile_id', 0);
+            $before = $this->profileSnapshot($businessId, $profileId);
             $rows = $this->zebra->rowsFromRequest($request->input('quantity'));
             $layout = $this->zebra->layoutFromRequest($request->input('layout', []));
             if ($request->boolean('test')) {
@@ -266,14 +282,17 @@ class LabelZebraController extends Controller
                     (string) ($product['name'] ?? '')
                 );
             }
+            $this->assertProfileUntouched($before, $businessId, $profileId);
             $labels = $rows * 3;
             $noun = $rows === 1 ? 'row' : 'rows';
             $message = $request->boolean('test')
-                ? 'Test print: '.$rows.' '.$noun.' ('.$labels.' labels) on '.$layout['printer_name'].'.'
-                : 'Sending '.$rows.' '.$noun.' ('.$labels.' labels) to '.$layout['printer_name'].'.';
+                ? 'Test print: '.$rows.' '.$noun.' ('.$labels.' labels) on '.$layout['printer_name'].'. The saved label was not changed.'
+                : 'Sending '.$rows.' '.$noun.' ('.$labels.' labels) to '.$layout['printer_name'].'. The saved label was not changed.';
 
             return response()->json([
                 'success' => true,
+                'temporary' => true,
+                'persisted' => false,
                 'message' => $message,
                 'zpl' => $job['zpl'],
                 'warnings' => $job['warnings'],
@@ -286,7 +305,7 @@ class LabelZebraController extends Controller
         } catch (InvalidArgumentException $e) {
             return $this->fail($e->getMessage(), 422);
         } catch (\Throwable $e) {
-            \Log::error('Zebra label ZPL failed: '.$e->getMessage());
+            \Log::error('Zebra temporary print failed: '.$e->getMessage());
 
             return $this->fail('Unable to prepare the label. Check the product and layout, then try again.', 500);
         }
@@ -314,6 +333,33 @@ class LabelZebraController extends Controller
         }
 
         return $id;
+    }
+
+    private function profileSnapshot(int $businessId, int $profileId): ?array
+    {
+        if ($profileId < 1) {
+            return null;
+        }
+
+        $profile = LabelPrintProfile::where('business_id', $businessId)->where('id', $profileId)->first();
+        if (! $profile) {
+            throw new InvalidArgumentException('The selected label profile could not be found.');
+        }
+
+        return $profile->getAttributes();
+    }
+
+    private function assertProfileUntouched(?array $before, int $businessId, int $profileId): void
+    {
+        if ($before === null) {
+            return;
+        }
+
+        $profile = LabelPrintProfile::where('business_id', $businessId)->where('id', $profileId)->first();
+        $after = $profile ? $profile->getAttributes() : null;
+        if ($after != $before) {
+            throw new \RuntimeException('Temporary print changed the saved label.');
+        }
     }
 
     private function findProfile(int $businessId, int $id): LabelPrintProfile

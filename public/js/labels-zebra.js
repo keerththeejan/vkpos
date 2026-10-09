@@ -8,7 +8,8 @@
         barcodeKey: '',
         qzLoading: null,
         skuEditing: false,
-        skuSaving: false
+        skuSaving: false,
+        masterLayout: null
     };
 
     var alignKeys = [
@@ -120,6 +121,81 @@
         };
     }
 
+    function cloneLayout() {
+        return JSON.parse(JSON.stringify(readLayout()));
+    }
+
+    function layoutToken(key, value) {
+        var textKeys = {
+            printer_name: true,
+            vertical_text: true,
+            sku_font_weight: true,
+            product_name_font_weight: true,
+            product_name_align: true
+        };
+        if (textKeys[key]) {
+            return String(value || '');
+        }
+        var number = Number(value);
+        if (Number.isFinite(number)) {
+            return String(Math.round(number * 1000) / 1000);
+        }
+        return String(value);
+    }
+
+    function layoutSignature(layout) {
+        return Object.keys(layout || {}).sort().map(function (key) {
+            return key + '=' + layoutToken(key, layout[key]);
+        }).join('|');
+    }
+
+    function writeLayout(layout) {
+        if (!layout) {
+            return;
+        }
+        setVal('zl_printer_name', layout.printer_name);
+        setVal('zl_printer_dpi', layout.printer_dpi);
+        setVal('zl_label_gap_mm', layout.label_gap_mm);
+        setVal('zl_top_offset_mm', layout.top_offset_mm);
+        setVal('zl_left_offset_mm', layout.left_offset_mm);
+        setVal('zl_width', layout.width);
+        setVal('zl_height', layout.height);
+        alignKeys.forEach(function (key) {
+            setVal('zl_' + key, layout[key]);
+        });
+        setVal('zl_sku_font_weight', layout.sku_font_weight || 'bold');
+        setVal('zl_product_name_font_weight', layout.product_name_font_weight || 'bold');
+        setVal('zl_product_name_align', layout.product_name_align || 'center');
+        setChecked('zl_product_name_show', layout.show_product_name);
+        setChecked('zl_product_name_wrap', layout.product_name_wrap);
+        setVal('zl_vertical', layout.vertical_text || '');
+    }
+
+    function syncTemporaryMode() {
+        var banner = byId('zl_temporary_mode');
+        if (!banner) {
+            return;
+        }
+        var dirty = !!(state.masterLayout && layoutSignature(readLayout()) !== layoutSignature(state.masterLayout));
+        banner.hidden = !dirty;
+    }
+
+    function captureMaster() {
+        state.masterLayout = cloneLayout();
+        syncTemporaryMode();
+    }
+
+    function discardTemporary() {
+        if (!state.masterLayout) {
+            return;
+        }
+        writeLayout(JSON.parse(JSON.stringify(state.masterLayout)));
+        state.barcodeKey = '';
+        updatePreview();
+        syncTemporaryMode();
+        setStatus('Temporary edits discarded. The saved label is unchanged.', 'ok');
+    }
+
     function setChecked(id, value) {
         var node = byId(id);
         if (!node) {
@@ -174,6 +250,7 @@
         fillProfiles();
         updateQuantitySummary();
         updatePreview();
+        captureMaster();
     }
 
     function fillProfiles() {
@@ -816,6 +893,7 @@
         }
         showWarnings(warnings);
         fitPreview();
+        syncTemporaryMode();
     }
 
     function fitPreview() {
@@ -911,7 +989,10 @@
         }
         var payload = { name: name, layout: readLayout() };
         var url = state.profileId ? (boot.urls.profiles + '/' + state.profileId) : boot.urls.profiles;
-        postProfile(url, payload).done(acceptProfiles).fail(function (xhr) {
+        postProfile(url, payload).done(function (res) {
+            acceptProfiles(res);
+            captureMaster();
+        }).fail(function (xhr) {
             setStatus(readError(xhr), 'error');
         });
     }
@@ -922,7 +1003,10 @@
             name: name + ' copy',
             auto_name: 1,
             layout: readLayout()
-        }).done(acceptProfiles).fail(function (xhr) {
+        }).done(function (res) {
+            acceptProfiles(res);
+            captureMaster();
+        }).fail(function (xhr) {
             setStatus(readError(xhr), 'error');
         });
     }
@@ -988,7 +1072,7 @@
     }
 
     function resetAlignment() {
-        ask('Restore the default alignment? Column positions, barcode, product name, SKU, price, and vertical text offsets return to the Zebra defaults. This is not saved until you press Save layout.').then(function (ok) {
+        ask('Restore the default alignment on screen? This does not change the saved label until you press Save label.').then(function (ok) {
             if (!ok) {
                 return;
             }
@@ -1007,7 +1091,7 @@
             applyMediaStack();
             state.barcodeKey = '';
             updatePreview();
-            setStatus('Default 30 × 15 mm alignment restored. Press Save layout to keep it.', 'ok');
+            setStatus('Default alignment is on screen only. Press Save label to keep it.', 'ok');
         });
     }
 
@@ -1156,14 +1240,16 @@
 
     function requestZpl(isTest) {
         return $.ajax({
-            url: boot.urls.zpl,
+            url: boot.urls.temporaryPrint || boot.urls.zpl,
             method: 'POST',
             data: {
                 variation_id: isTest ? 0 : (state.product ? state.product.variation_id : 0),
+                profile_id: state.profileId || 0,
                 quantity: text('zl_qty'),
                 price_group_id: text('zl_price_group'),
                 test: isTest ? 1 : 0,
-                layout: readLayout()
+                temporary: 1,
+                layout: cloneLayout()
             }
         });
     }
@@ -1447,6 +1533,7 @@
         updateQuantitySummary();
         byId('zl_load').addEventListener('click', loadSelected);
         byId('zl_save').addEventListener('click', saveProfile);
+        byId('zl_discard').addEventListener('click', discardTemporary);
         byId('zl_duplicate').addEventListener('click', duplicateProfile);
         byId('zl_rename').addEventListener('click', renameProfile);
         byId('zl_delete').addEventListener('click', deleteProfile);

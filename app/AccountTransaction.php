@@ -126,4 +126,84 @@ class AccountTransaction extends Model
     {
         return $this->belongsTo(\App\Account::class, 'account_id');
     }
+
+    /**
+     * Debit or credit direction used by the payment-account book.
+     * A credit increases the book balance. Sell change is a debit.
+     * Returns null when the payment is not a cash or bank movement.
+     */
+    public static function bookDirection($transactionType, $isReturn, $paymentType = null, $contactType = null)
+    {
+        if ($transactionType === 'sell' && (int) $isReturn === 1) {
+            return 'debit';
+        }
+
+        $creditTypes = ['sell', 'purchase_return', 'expense_refund', 'hms_booking', 'gym_subscription'];
+        $debitTypes = ['purchase', 'expense', 'sell_return', 'payroll'];
+
+        if (in_array($transactionType, $creditTypes, true)) {
+            return 'credit';
+        }
+        if (in_array($transactionType, $debitTypes, true)) {
+            return 'debit';
+        }
+        if ($transactionType === 'opening_balance') {
+            return $contactType === 'supplier' ? 'debit' : 'credit';
+        }
+        if ($paymentType === 'credit' || $paymentType === 'debit') {
+            return $paymentType;
+        }
+
+        return null;
+    }
+
+    /**
+     * Signed book amount: credit positive, debit negative.
+     * Columns must use the aliases from unpostedPaymentQuery().
+     */
+    public static function signedAmountSql()
+    {
+        return "CASE
+            WHEN t.type = 'sell' AND tp.is_return = 1 THEN -1 * tp.amount
+            WHEN t.type IN ('sell', 'purchase_return', 'expense_refund', 'hms_booking', 'gym_subscription') THEN tp.amount
+            WHEN t.type IN ('purchase', 'expense', 'sell_return', 'payroll') THEN -1 * tp.amount
+            WHEN t.type = 'opening_balance' AND c.type = 'supplier' THEN -1 * tp.amount
+            WHEN t.type = 'opening_balance' THEN tp.amount
+            WHEN tp.payment_type = 'credit' THEN tp.amount
+            WHEN tp.payment_type = 'debit' THEN -1 * tp.amount
+            ELSE 0
+        END";
+    }
+
+    /**
+     * Receipts and payments that were never posted to a payment account.
+     * Advance allocations and child payments are excluded so a receipt is counted once.
+     */
+    public static function unpostedPaymentQuery($businessId)
+    {
+        return \App\TransactionPayment::query()
+            ->from('transaction_payments as tp')
+            ->leftJoin('transactions as t', 'tp.transaction_id', '=', 't.id')
+            ->leftJoin('contacts as c', 'tp.payment_for', '=', 'c.id')
+            ->where('tp.business_id', $businessId)
+            ->whereNull('tp.parent_id')
+            ->where(function ($query) {
+                $query->whereNull('tp.method')
+                    ->orWhere('tp.method', '!=', 'advance');
+            })
+            ->whereNull('tp.account_id')
+            ->whereNotExists(function ($query) {
+                $query->select(\DB::raw(1))
+                    ->from('account_transactions as atx')
+                    ->whereColumn('atx.transaction_payment_id', 'tp.id')
+                    ->whereNull('atx.deleted_at');
+            })
+            ->where(function ($query) {
+                $query->whereNull('tp.transaction_id')
+                    ->orWhere(function ($posted) {
+                        $posted->whereNotNull('t.id')
+                            ->where('t.status', '!=', 'draft');
+                    });
+            });
+    }
 }

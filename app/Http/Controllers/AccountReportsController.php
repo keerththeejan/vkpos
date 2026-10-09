@@ -215,7 +215,48 @@ class AccountReportsController extends Controller
                                 ->get()
                                 ->pluck('balance', 'name');
 
+        foreach ($this->unlinkedPaymentBalances($business_id, $end_date, $location_id, $permitted_locations) as $name => $balance) {
+            $account_details[$name] = $balance;
+        }
+
         return $account_details;
+    }
+
+    /**
+     * Cash and bank totals for payments that were never posted to an account.
+     * The sign matches account_transactions: credit is positive.
+     */
+    private function unlinkedPaymentBalances($business_id, $end_date, $location_id, $permitted_locations)
+    {
+        $query = AccountTransaction::unpostedPaymentQuery($business_id)
+            ->whereDate('tp.paid_on', '<=', $end_date);
+
+        if (! empty($location_id)) {
+            $query->where('t.location_id', $location_id);
+        } elseif ($permitted_locations != 'all') {
+            $ids = is_array($permitted_locations) ? $permitted_locations : [];
+            $query->whereIn('t.location_id', $ids ?: [0]);
+        }
+
+        $rows = $query->groupBy('tp.method')
+            ->select([
+                'tp.method',
+                DB::raw('SUM('.AccountTransaction::signedAmountSql().') as balance'),
+            ])
+            ->get();
+
+        $labels = $this->transactionUtil->payment_types(null, false, $business_id);
+        $balances = [];
+        foreach ($rows as $row) {
+            $balance = round((float) $row->balance, 4);
+            if ($balance == 0.0) {
+                continue;
+            }
+            $method = $labels[$row->method] ?? ($row->method ?: __('account.account'));
+            $balances[__('home.ledger_unlinked_method', ['method' => $method])] = $balance;
+        }
+
+        return $balances;
     }
 
     /**

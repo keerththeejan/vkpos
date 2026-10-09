@@ -15,6 +15,8 @@ use App\Http\Controllers\CombinedPurchaseReturnController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CustomerGroupController;
 use App\Http\Controllers\DashboardConfiguratorController;
+use App\Http\Controllers\DashboardAnalyticsController;
+use App\Http\Controllers\DashboardLedgerController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\DocumentAndNoteController;
 use App\Http\Controllers\ExpenseCategoryController;
@@ -113,6 +115,10 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::get('/sign-in-as-user/{id}', [ManageUserController::class, 'signInAsUser'])->name('sign-in-as-user');
 
     Route::get('/home', [HomeController::class, 'index'])->name('home');
+    Route::get('/home/analytics', [DashboardAnalyticsController::class, 'show']);
+    Route::get('/home/ledger/options', [DashboardLedgerController::class, 'options']);
+    Route::get('/home/ledger/contacts', [DashboardLedgerController::class, 'contacts']);
+    Route::get('/home/ledger', [DashboardLedgerController::class, 'show']);
     Route::get('/home/get-totals', [HomeController::class, 'getTotals']);
     Route::get('/home/product-stock-alert', [HomeController::class, 'getProductStockAlert']);
     Route::get('/home/purchase-payment-dues', [HomeController::class, 'getPurchasePaymentDues']);
@@ -265,6 +271,7 @@ Route::middleware(['setData', 'auth', 'SetSessionData', 'language', 'timezone', 
     Route::post('/labels/zebra/profiles/{id}/default', [LabelZebraController::class, 'setDefault']);
     Route::delete('/labels/zebra/profiles/{id}', [LabelZebraController::class, 'destroy']);
     Route::post('/labels/zebra/zpl', [LabelZebraController::class, 'zpl']);
+    Route::post('/labels/zebra/temporary-print', [LabelZebraController::class, 'temporaryPrint']);
 
     //Reports...
     Route::get('/reports/gst-purchase-report', [ReportController::class, 'gstPurchaseReport']);

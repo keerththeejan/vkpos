@@ -170,6 +170,9 @@ $(document).ready(function() {
 });
 
 function update_statistics(start, end) {
+    if (typeof window.loadDashboardAnalytics === 'function') {
+        window.loadDashboardAnalytics(start, end);
+    }
     var location_id = '';
     if ($('#dashboard_location').length > 0) {
         location_id = $('#dashboard_location').val();

@@ -82,16 +82,21 @@
 					<input type="text" id="zl_profile_name" class="form-control" maxlength="80">
 				</div>
 			</div>
+			<div id="zl_temporary_mode" class="zl-temporary" hidden>
+				<strong>Temporary print mode</strong>
+				<span>These edits are for printing only. The saved label stays unchanged until you press Save label.</span>
+			</div>
 			<div class="zl-actions zl-actions--wrap">
 				<button type="button" class="zl-btn" id="zl_load">Load</button>
-				<button type="button" class="zl-btn zl-btn--primary" id="zl_save">Save layout</button>
+				<button type="button" class="zl-btn zl-btn--primary" id="zl_save" title="Permanently save this label template">Save label</button>
+				<button type="button" class="zl-btn" id="zl_discard" title="Restore the saved label and drop print-only edits">Discard edits</button>
 				<button type="button" class="zl-btn" id="zl_duplicate">Duplicate</button>
 				<button type="button" class="zl-btn" id="zl_rename">Rename</button>
 				<button type="button" class="zl-btn" id="zl_delete">Delete</button>
 				<button type="button" class="zl-btn" id="zl_default">Set as default</button>
 				<button type="button" class="zl-btn" id="zl_reset">Reset layout</button>
 			</div>
-			<p class="zl-hint">Alignment is stored for this business. Preview updates immediately. Nothing is saved until you press Save layout.</p>
+			<p class="zl-hint">Save label stores the template. Print uses the edits on screen for that job only. Discard edits puts the saved label back. Refreshing the page also returns the saved label.</p>
 
 			<h3 id="zl_printer_settings">Printer settings</h3>
 			<div class="zl-fields zl-fields--3">
@@ -230,7 +235,7 @@
 			<button type="button" class="zl-btn" id="zl_printer_settings_btn">Printer settings</button>
 		</div>
 		<p id="zl_qty_summary" class="zl-qty-summary">1 row × 3 labels = 3 physical labels</p>
-		<p class="zl-hint">Print and Test print send raw ZPL through QZ Tray. Quantity 10 is ten identical rows, not a shifting layout.</p>
+		<p class="zl-hint">Print and Test print send raw ZPL through QZ Tray. They do not save the label. Quantity 10 is ten identical rows, not a shifting layout.</p>
 	</section>
 </div>
 
@@ -257,6 +262,7 @@
 			product: @json(url('/labels/zebra/product')),
 			profiles: @json(url('/labels/zebra/profiles')),
 			zpl: @json(url('/labels/zebra/zpl')),
+			temporaryPrint: @json(url('/labels/zebra/temporary-print')),
 			search: @json(url('/purchases/get_products')),
 			qz: @json(asset('js/vendor/qz-tray.js'))
 		}

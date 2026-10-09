@@ -368,38 +368,135 @@
     </div>
     @if (auth()->user()->can('dashboard.data'))
         <div class="tw-px-5 tw-py-6">
+            @include('home.partials.analytics')
             <div class="tw-grid tw-grid-cols-1 tw-gap-4 sm:tw-gap-5 lg:tw-grid-cols-2">
                 @if (auth()->user()->can('sell.view') || auth()->user()->can('direct_sell.view'))
                     @if (!empty($all_locations))
-                        <div
+                        @php
+                            $ledger_start = session('financial_year.start') ?: \Carbon\Carbon::now()->startOfMonth()->toDateString();
+                            $ledger_end = \Carbon\Carbon::now()->toDateString();
+                            if ($ledger_start > $ledger_end) {
+                                $ledger_start = \Carbon\Carbon::now()->startOfMonth()->toDateString();
+                            }
+                        @endphp
+                        <div id="dashboard_sales_ledger_card"
+                            data-ledger-url="{{ url('/home/ledger') }}"
+                            data-options-url="{{ url('/home/ledger/options') }}"
+                            data-contacts-url="{{ url('/home/ledger/contacts') }}"
+                            data-default-start="{{ $ledger_start }}"
+                            data-default-end="{{ $ledger_end }}"
                             class="tw-transition-all lg:tw-col-span-2 xl:tw-col-span-2 tw-duration-200 tw-bg-white tw-shadow-sm tw-rounded-xl tw-ring-1 hover:tw-shadow-md hover:tw--translate-y-0.5 tw-ring-gray-200">
                             <div class="tw-p-4 sm:tw-p-5">
-                                <div class="tw-flex tw-items-center tw-gap-2.5">
-                                    <div
-                                        class="tw-border-2 tw-flex tw-items-center tw-justify-center tw-rounded-full tw-w-10 tw-h-10">
-                                        <svg aria-hidden="true" class="tw-size-5 tw-text-sky-500 tw-shrink-0"
-                                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2"
-                                            stroke="currentColor" fill="none" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                                            <path d="M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
-                                            <path d="M17 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
-                                            <path d="M17 17h-11v-14h-2"></path>
-                                            <path d="M6 5l14 1l-1 7h-13"></path>
-                                        </svg>
+                                <div class="tw-flex tw-flex-col sm:tw-flex-row sm:tw-items-center tw-gap-2.5">
+                                    <div class="tw-flex tw-items-center tw-gap-2.5 tw-min-w-0">
+                                        <div
+                                            class="tw-border-2 tw-flex tw-items-center tw-justify-center tw-rounded-full tw-w-10 tw-h-10 tw-shrink-0">
+                                            <svg aria-hidden="true" class="tw-size-5 tw-text-sky-500 tw-shrink-0"
+                                                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2"
+                                                stroke="currentColor" fill="none" stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                <path d="M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+                                                <path d="M17 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+                                                <path d="M17 17h-11v-14h-2"></path>
+                                                <path d="M6 5l14 1l-1 7h-13"></path>
+                                            </svg>
+                                        </div>
+                                        <h3 id="dashboard_sales_card_title" class="tw-font-bold tw-text-base lg:tw-text-xl tw-mb-0">
+                                            {{ __('home.sells_last_30_days') }}
+                                        </h3>
                                     </div>
-
-                                    <h3 class="tw-font-bold tw-text-base lg:tw-text-xl">
-                                        {{ __('home.sells_last_30_days') }}
-                                    </h3>
+                                    <div class="sm:tw-ml-auto tw-w-full sm:tw-w-64">
+                                        <label class="tw-sr-only" for="dashboard_card_mode">@lang('lang_v1.type')</label>
+                                        <select id="dashboard_card_mode" class="form-control">
+                                            <option value="sales" selected>{{ __('home.sells_last_30_days') }}</option>
+                                            <option value="general">{{ __('home.ledger_general') }}</option>
+                                            <option value="account">{{ __('home.ledger_account') }}</option>
+                                            <option value="cash_bank">{{ __('home.ledger_cash_bank') }}</option>
+                                            <option value="customer">{{ __('home.ledger_customer') }}</option>
+                                            <option value="supplier">{{ __('home.ledger_supplier') }}</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="tw-mt-5">
+                                <div class="tw-mt-5" id="dashboard_sales_chart_panel">
                                     <div
                                         class="tw-grid tw-w-full tw-h-100 tw-border tw-border-gray-200 tw-border-dashed tw-rounded-xl tw-bg-gray-50 ">
                                         <p class="tw-text-sm tw-italic tw-font-normal tw-text-gray-400">
                                             {!! $sells_chart_1->container() !!}
                                         </p>
                                     </div>
+                                </div>
+                                <div id="dashboard_ledger_panel" class="tw-hidden tw-mt-4">
+                                    <div class="row">
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank customer supplier">
+                                            <div class="form-group">
+                                                <label for="dl_start">@lang('account.from')</label>
+                                                <input type="date" id="dl_start" class="form-control" value="{{ $ledger_start }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank customer supplier">
+                                            <div class="form-group">
+                                                <label for="dl_end">@lang('lang_v1.to')</label>
+                                                <input type="date" id="dl_end" class="form-control" value="{{ $ledger_end }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank">
+                                            <div class="form-group">
+                                                <label for="dl_account_type">@lang('lang_v1.account_type')</label>
+                                                <select id="dl_account_type" class="form-control"><option value="">@lang('lang_v1.all')</option></select>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank">
+                                            <div class="form-group">
+                                                <label for="dl_account">@lang('account.account')</label>
+                                                <select id="dl_account" class="form-control"><option value="">@lang('lang_v1.all')</option></select>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank customer supplier">
+                                            <div class="form-group">
+                                                <label for="dl_location">@lang('sale.location')</label>
+                                                <select id="dl_location" class="form-control"><option value="">@lang('lang_v1.all')</option></select>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank">
+                                            <div class="form-group">
+                                                <label for="dl_voucher_type">@lang('lang_v1.type')</label>
+                                                <select id="dl_voucher_type" class="form-control"><option value="">@lang('lang_v1.all')</option></select>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank">
+                                            <div class="form-group">
+                                                <label for="dl_voucher_no">@lang('purchase.ref_no')</label>
+                                                <input type="text" id="dl_voucher_no" class="form-control" maxlength="100">
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="customer supplier">
+                                            <div class="form-group">
+                                                <label for="dl_contact">@lang('contact.contact')</label>
+                                                <select id="dl_contact" class="form-control"></select>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-md-3" data-ledger-filter="general account cash_bank customer supplier">
+                                            <div class="form-group">
+                                                <label for="dl_search">@lang('lang_v1.search')</label>
+                                                <input type="text" id="dl_search" class="form-control" maxlength="100">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tw-flex tw-flex-wrap tw-gap-2 tw-mb-3">
+                                        <button type="button" id="dl_apply" class="tw-dw-btn tw-dw-btn-primary tw-dw-btn-sm">@lang('lang_v1.search')</button>
+                                        <button type="button" id="dl_excel" class="tw-dw-btn tw-dw-btn-outline tw-dw-btn-sm"><i class="fa fa-file-excel-o"></i> @lang('lang_v1.export')</button>
+                                        <button type="button" id="dl_print" class="tw-dw-btn tw-dw-btn-outline tw-dw-btn-sm"><i class="fa fa-print"></i> @lang('messages.print')</button>
+                                        <button type="button" id="dl_pdf" class="tw-dw-btn tw-dw-btn-outline tw-dw-btn-sm" data-ledger-filter="customer supplier"><i class="fa fa-file-pdf-o"></i> PDF</button>
+                                    </div>
+                                    <div id="dl_alert" class="tw-mb-2"></div>
+                                    <p id="dl_note" class="text-muted" style="font-size:12px;"></p>
+                                    <div id="dl_summary" class="row"></div>
+                                    <div id="dl_cash_wrap" class="table-responsive tw-mb-3"></div>
+                                    <div id="dl_table_wrap" class="dl-table-wrap table-responsive">
+                                        <table class="table table-bordered table-striped" id="dl_table"></table>
+                                    </div>
+                                    <div id="dl_pager" class="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2 tw-mt-2"></div>
                                 </div>
                             </div>
                         </div>
@@ -564,7 +661,7 @@
                     </div>
                 @endcan
                 @can('stock_report.view')
-                    <div
+                    <div id="product_stock_alert"
                         class="tw-transition-all lg:tw-col-span-2 tw-duration-200 tw-bg-white tw-shadow-sm tw-rounded-xl tw-ring-1 hover:tw-shadow-md hover:tw--translate-y-0.5 tw-ring-gray-200">
                         <div class="tw-p-4 sm:tw-p-5">
                             <div class="tw-flex tw-items-center tw-gap-2.5">
@@ -1026,17 +1123,93 @@
         .select2-container {
             width: 100% !important;
         }
+
+        #dashboard_sales_ledger_card .dl-table-wrap {
+            max-height: 520px;
+            overflow: auto;
+        }
+
+        #dashboard_sales_ledger_card .dl-table-wrap thead th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            z-index: 2;
+        }
+
+        #dashboard_sales_ledger_card .dl-sort {
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        #dashboard_sales_ledger_card .dl-stat {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            background: #f8fafc;
+        }
+
+        #dashboard_sales_ledger_card .dl-stat .dl-label {
+            display: block;
+            color: #6b7280;
+            font-size: 11px;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+
+        #dashboard_card_mode {
+            min-width: 210px;
+        }
     </style>
 @endsection
 
 @section('javascript')
     <script src="{{ asset('js/home.js?v=' . $asset_v) }}"></script>
+    @if (auth()->user()->can('dashboard.data'))
+        <script src="{{ asset('js/dashboard-analytics.js?v=' . $asset_v) }}"></script>
+    @endif
     <script src="{{ asset('js/payment.js?v=' . $asset_v) }}"></script>
     @includeIf('sales_order.common_js')
     @includeIf('purchase_order.common_js')
     @if (!empty($all_locations))
         {!! $sells_chart_1->script() !!}
         {!! $sells_chart_2->script() !!}
+        @php
+            $dashboardLedgerLabels = [
+                'date' => __('messages.date'),
+                'voucher' => __('purchase.ref_no'),
+                'account' => __('account.account'),
+                'type' => __('lang_v1.type'),
+                'description' => __('lang_v1.description'),
+                'debit' => __('account.debit'),
+                'credit' => __('account.credit'),
+                'balance' => __('home.ledger_running_balance'),
+                'action' => __('messages.action'),
+                'view' => __('home.ledger_view_voucher'),
+                'openingDebit' => __('lang_v1.opening_balance').' '.__('account.debit'),
+                'openingCredit' => __('lang_v1.opening_balance').' '.__('account.credit'),
+                'movementDebit' => __('account.debit'),
+                'movementCredit' => __('account.credit'),
+                'closingDebit' => __('account.debit'),
+                'closingCredit' => __('account.credit'),
+                'closing' => __('lang_v1.balance'),
+                'count' => __('sale.total'),
+                'receipts' => __('home.ledger_receipts'),
+                'payments' => __('home.ledger_payments'),
+                'transferIn' => __('home.ledger_transfer_in'),
+                'transferOut' => __('home.ledger_transfer_out'),
+                'outstanding' => __('home.ledger_outstanding'),
+                'invoices' => __('lang_v1.total_invoice'),
+                'purchases' => __('report.total_purchase'),
+                'paid' => __('sale.total_paid'),
+                'discount' => __('lang_v1.ledger_discount'),
+                'all' => __('lang_v1.all'),
+                'contact' => __('contact.contact'),
+                'empty' => __('home.ledger_empty'),
+            ];
+        @endphp
+        <script type="application/json" id="dashboard-ledger-labels">{!! json_encode($dashboardLedgerLabels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) !!}</script>
+        <script src="{{ asset('js/dashboard-ledger.js?v=' . $asset_v) }}"></script>
     @endif
     <script type="text/javascript">
         $(document).ready(function() {

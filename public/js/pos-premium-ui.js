@@ -167,8 +167,8 @@
   }
 
   /**
-   * Hidden buying-price popover. Uses existing cost values already
-   * rendered on .pos-view-cost (no new price calculation).
+   * Buying price is shown at the left bottom of the price cell.
+   * Uses the cost already rendered on .pos-view-cost.
    */
   function wireBuyingPricePopover() {
     if (typeof jQuery === 'undefined') return;
@@ -176,44 +176,44 @@
     var hideTimer = null;
 
     function hidePop() {
-      $('#pos_cost_popover').removeClass('is-open');
+      $('.pos-cost-inline').removeClass('is-open');
       if (hideTimer) {
         clearTimeout(hideTimer);
         hideTimer = null;
       }
     }
 
-    function ensurePop() {
-      var $pop = $('#pos_cost_popover');
-      if (!$pop.length) {
-        $pop = $(
-          '<div id="pos_cost_popover" class="pos-cost-pop" role="tooltip">' +
-            '<div class="pos-cost-pop-label">Buying Price</div>' +
-            '<div class="pos-cost-pop-value"></div>' +
+    function ensureInline($btn) {
+      var $stack = $btn.closest('.pos-price-stack');
+      var $inline = $stack.children('.pos-cost-inline');
+      if (!$inline.length) {
+        $inline = $(
+          '<div class="pos-cost-inline" role="status">' +
+            '<div class="pos-cost-inline-label">Buying Price</div>' +
+            '<div class="pos-cost-inline-value"></div>' +
           '</div>'
         );
-        $('body').append($pop);
+        $stack.append($inline);
       }
-      return $pop;
+      return $inline;
     }
 
     $(document).on('click', '.pos-view-cost', function (e) {
       e.preventDefault();
       e.stopPropagation();
       var $btn = $(this);
-      var $pop = ensurePop();
-      $pop.find('.pos-cost-pop-value').text($btn.attr('data-cost-label') || '—');
-      var rect = this.getBoundingClientRect();
-      $pop.css({
-        top: rect.bottom + 8 + (window.scrollY || window.pageYOffset || 0) + 'px',
-        left: Math.max(8, rect.left + (window.scrollX || window.pageXOffset || 0)) + 'px',
-      }).addClass('is-open');
+      var $inline = ensureInline($btn);
+      var already = $inline.hasClass('is-open');
+      hidePop();
+      if (already) return;
+      $inline.find('.pos-cost-inline-value').text($btn.attr('data-cost-label') || '—');
+      $inline.addClass('is-open');
       if (hideTimer) clearTimeout(hideTimer);
       hideTimer = setTimeout(hidePop, 4000);
     });
 
     $(document).on('click', function (e) {
-      if ($(e.target).closest('.pos-view-cost, #pos_cost_popover').length) return;
+      if ($(e.target).closest('.pos-view-cost, .pos-cost-inline').length) return;
       hidePop();
     });
 

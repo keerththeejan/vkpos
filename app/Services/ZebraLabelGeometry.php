@@ -197,15 +197,16 @@ class ZebraLabelGeometry
     }
 
     /**
-     * Integer module width only. Narrow the module until the bars and a quiet
-     * zone fit. Never stretch the barcode. Data is not shortened here.
+     * Integer module width from the Barcode width field. Keep that thickness
+     * when the bars fit the sticker. Narrow it only when the bars themselves
+     * would run past the label edge. Never stretch the barcode.
      */
     public function fitBarcode(string $data, float $requestedModule, int $labelWidth): array
     {
-        $module = (int) max(1, min(10, (int) floor($requestedModule)));
+        $module = (int) max(1, min(10, (int) round($requestedModule)));
         $reduced = false;
         $width = $this->code128WidthDots($data, $module);
-        while ($module > 1 && ($width + (20 * $module)) > $labelWidth) {
+        while ($module > 1 && $width > $labelWidth) {
             $module--;
             $reduced = true;
             $width = $this->code128WidthDots($data, $module);
@@ -248,15 +249,7 @@ class ZebraLabelGeometry
     {
         $width = (int) ($layout['width'] ?? 0);
         $height = (int) ($layout['height'] ?? 0);
-        $labelH = (int) $media['label_height'];
-        $nameY = (int) ($layout['product_name_y'] ?? 0);
-        $priceY = (int) ($layout['price_y'] ?? 0);
-
-        if ($width === 800 && $height === 140) {
-            return true;
-        }
-
-        return $nameY >= $labelH || $priceY >= $labelH;
+        return $width === 800 && $height === 140;
     }
 
     private function boundedMm($value, float $default, float $min, float $max): float

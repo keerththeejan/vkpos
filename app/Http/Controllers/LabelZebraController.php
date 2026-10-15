@@ -262,6 +262,7 @@ class LabelZebraController extends Controller
             $before = $this->profileSnapshot($businessId, $profileId);
             $rows = $this->zebra->rowsFromRequest($request->input('quantity'));
             $layout = $this->zebra->layoutFromRequest($request->input('layout', []));
+            $printSku = null;
             if ($request->boolean('test')) {
                 $job = $this->zebra->buildTestJob($layout, $rows);
                 $product = null;
@@ -269,13 +270,16 @@ class LabelZebraController extends Controller
                 $priceGroupId = $request->filled('price_group_id') ? (int) $request->input('price_group_id') : null;
                 $product = $this->zebra->productPayload($businessId, (int) $request->input('variation_id'), $priceGroupId);
 
-                if (! empty($product['barcode_missing']) || $product['barcode'] === '') {
+                $printSku = $this->zebra->printSkuOverride($request->input('print_sku'));
+                $barcode = $printSku !== null ? $printSku : (string) $product['barcode'];
+
+                if ($barcode === '') {
                     throw new InvalidArgumentException('Barcode is missing for this product.');
                 }
 
                 $job = $this->zebra->buildJob(
                     $layout,
-                    $product['barcode'],
+                    $barcode,
                     $product['price'],
                     (string) $layout['vertical_text'],
                     $rows,
@@ -285,9 +289,17 @@ class LabelZebraController extends Controller
             $this->assertProfileUntouched($before, $businessId, $profileId);
             $labels = $rows * 3;
             $noun = $rows === 1 ? 'row' : 'rows';
-            $message = $request->boolean('test')
-                ? 'Test print: '.$rows.' '.$noun.' ('.$labels.' labels) on '.$layout['printer_name'].'. The saved label was not changed.'
-                : 'Sending '.$rows.' '.$noun.' ('.$labels.' labels) to '.$layout['printer_name'].'. The saved label was not changed.';
+            $message = $rows.' '.$noun.' × 3 labels = '.$labels.' physical labels. ZPL is ready for '.$layout['printer_name'].'. The saved label was not changed.';
+            \Log::info('Zebra ZPL prepared', [
+                'business_id' => $businessId,
+                'user_id' => optional(auth()->user())->id,
+                'rows' => $rows,
+                'labels' => $labels,
+                'test' => $request->boolean('test'),
+                'print_sku_override' => $printSku !== null,
+                'printer' => $layout['printer_name'],
+                'variation_id' => $product['variation_id'] ?? null,
+            ]);
 
             return response()->json([
                 'success' => true,

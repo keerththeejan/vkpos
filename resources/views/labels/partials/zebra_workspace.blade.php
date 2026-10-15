@@ -50,12 +50,7 @@
 							</div>
 							<div class="zl-sku__editor" id="zl_sku_editor" hidden>
 								<label class="zl-sku__field-label" for="zl_sku_input">SKU / Barcode Data</label>
-								<input type="text" id="zl_sku_input" class="form-control" maxlength="255" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="text" aria-describedby="zl_sku_error">
-								<div class="zl-sku__actions">
-									<button type="button" class="zl-btn zl-btn--primary" id="zl_sku_save"><i class="fa fa-check" aria-hidden="true"></i> Save</button>
-									<button type="button" class="zl-btn" id="zl_sku_cancel"><i class="fa fa-times" aria-hidden="true"></i> Cancel</button>
-								</div>
-								<p class="zl-sku__error" id="zl_sku_error" role="alert" hidden></p>
+								<input type="text" id="zl_sku_input" class="form-control" maxlength="255" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="text" enterkeyhint="done">
 							</div>
 						</dd>
 					</div>
@@ -67,7 +62,7 @@
 			<label class="zl-label" for="zl_vertical">Vertical text</label>
 			<input type="text" id="zl_vertical" class="form-control" maxlength="80" placeholder="Printed down the label">
 
-			<p class="zl-hint">One print quantity is one row of three stickers. Quantity 1 prints the same product on all three labels.</p>
+			<p class="zl-hint">Print quantity counts rows. 1 row × 3 labels = 3 physical labels. The same product is placed on all three stickers in that row.</p>
 		</section>
 
 		<section class="zl-card">
@@ -128,7 +123,7 @@
 			<div class="zl-actions">
 				<button type="button" class="zl-btn" id="zl_detect_printer">Detect ZD220</button>
 			</div>
-			<p class="zl-hint">Label size is 30 × 15 mm. The gap is the liner between the three stickers and is included in ^PW and the column origins. ^LL stays at 15 mm so the ZD220 gap sensor feeds each row. Positive left offset moves all three labels right. Positive top offset moves them down. The same shift is applied to every row.</p>
+			<p class="zl-hint">ZD220, 203 DPI, 3-across die-cut stock. Each sticker is 30 × 15 mm. The default 2 mm gap is the liner between stickers and is part of ^PW. ^LL stays 15 mm so the gap sensor feeds one row at a time. One ZPL format is one row of three stickers. ^PQ repeats that row. The ZD220 print head is 104 mm (832 dots), so this web fits. Positive left offset moves the row right. Positive top offset moves it down.</p>
 
 			<h3>Column origins</h3>
 			<div class="zl-fields zl-fields--3">
@@ -139,16 +134,19 @@
 			<p class="zl-hint">These origins are calculated. Label 2 is one label width plus the gap. Label 3 is twice that pitch.</p>
 
 			<h3>Barcode</h3>
+			<div class="zl-toggles">
+				<label><input type="checkbox" id="zl_show_barcode" checked> Show barcode</label>
+			</div>
 			<div class="zl-fields">
 				@include('labels.partials.zebra_field', ['id' => 'zl_barcode_x', 'label' => 'Center nudge', 'axis' => 'x'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_barcode_y', 'label' => 'Barcode Y', 'axis' => 'y'])
-				@include('labels.partials.zebra_field', ['id' => 'zl_barcode_width', 'label' => 'Barcode width', 'step' => '0.1'])
-				@include('labels.partials.zebra_field', ['id' => 'zl_barcode_height', 'label' => 'Barcode height', 'step' => '1'])
+				@include('labels.partials.zebra_field', ['id' => 'zl_barcode_width', 'label' => 'Barcode width', 'step' => '1', 'nudge' => true, 'min' => 1, 'max' => 10])
+				@include('labels.partials.zebra_field', ['id' => 'zl_barcode_height', 'label' => 'Barcode height', 'step' => '1', 'nudge' => true, 'min' => 10, 'max' => 120])
 			</div>
 
 			<h3>Product name</h3>
 			<div class="zl-fields">
-				@include('labels.partials.zebra_field', ['id' => 'zl_product_name_x', 'label' => 'Product name X', 'readonly' => true])
+				@include('labels.partials.zebra_field', ['id' => 'zl_product_name_x', 'label' => 'Product name X', 'axis' => 'x'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_product_name_y', 'label' => 'Product name Y', 'axis' => 'y'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_product_name_font_size', 'label' => 'Font size', 'step' => '1'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_product_name_font_width', 'label' => 'Font width', 'step' => '1'])
@@ -174,11 +172,14 @@
 				<label><input type="checkbox" id="zl_product_name_show" checked> Show product name</label>
 				<label><input type="checkbox" id="zl_product_name_wrap"> Wrap long names</label>
 			</div>
-			<p class="zl-hint">The name comes from the selected product and is centered in each 30 mm label. Long names are shortened with an ellipsis so they stay inside the sticker.</p>
+			<p class="zl-hint">X and Y are dots from the top-left of each 30 mm sticker. Alignment places the text inside the space to the right of X. The same position is used on all three labels.</p>
 
 			<h3>SKU</h3>
+			<div class="zl-toggles">
+				<label><input type="checkbox" id="zl_show_sku" checked> Show SKU</label>
+			</div>
 			<div class="zl-fields">
-				@include('labels.partials.zebra_field', ['id' => 'zl_sku_x', 'label' => 'SKU X', 'readonly' => true])
+				@include('labels.partials.zebra_field', ['id' => 'zl_sku_x', 'label' => 'SKU X', 'axis' => 'x'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_sku_y', 'label' => 'SKU Y', 'axis' => 'y'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_sku_font_size', 'label' => 'SKU font size', 'step' => '1'])
 				<div class="zl-field">
@@ -188,13 +189,32 @@
 						<option value="normal">Normal</option>
 					</select>
 				</div>
+				<div class="zl-field">
+					<span class="zl-field__label">SKU alignment</span>
+					<select id="zl_sku_align" class="form-control">
+						<option value="left">Left</option>
+						<option value="center" selected>Center</option>
+						<option value="right">Right</option>
+					</select>
+				</div>
 			</div>
 
 			<h3>Price</h3>
+			<div class="zl-toggles">
+				<label><input type="checkbox" id="zl_show_price" checked> Show price</label>
+			</div>
 			<div class="zl-fields">
-				@include('labels.partials.zebra_field', ['id' => 'zl_price_x', 'label' => 'Price X', 'readonly' => true])
+				@include('labels.partials.zebra_field', ['id' => 'zl_price_x', 'label' => 'Price X', 'axis' => 'x'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_price_y', 'label' => 'Price Y', 'axis' => 'y'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_price_font_size', 'label' => 'Price font size', 'step' => '1'])
+				<div class="zl-field">
+					<span class="zl-field__label">Price alignment</span>
+					<select id="zl_price_align" class="form-control">
+						<option value="left">Left</option>
+						<option value="center" selected>Center</option>
+						<option value="right">Right</option>
+					</select>
+				</div>
 			</div>
 
 			<h3>Vertical text</h3>
@@ -203,7 +223,7 @@
 				@include('labels.partials.zebra_field', ['id' => 'zl_vertical_y', 'label' => 'Vertical Y', 'axis' => 'y'])
 				@include('labels.partials.zebra_field', ['id' => 'zl_vertical_font_size', 'label' => 'Vertical font size', 'step' => '1'])
 			</div>
-			<p class="zl-hint">Y arrows move 1 dot. Hold Shift for 10 dots. The same Y is used on all three labels. Barcode, number, price, and name stay centered.</p>
+			<p class="zl-hint">Y arrows move 1 dot. Hold Shift for 10 dots. Vertical font size 0 leaves that text off the label. X and alignment apply to every sticker in the row.</p>
 		</section>
 	</div>
 
@@ -216,7 +236,7 @@
 				<label><input type="checkbox" id="zl_show_coords"> Show coordinates</label>
 			</div>
 		</div>
-		<p class="zl-hint">Each box is 30:15. The space between boxes is the label gap. This preview is not the print engine.</p>
+		<p class="zl-hint">Each box is one 30 × 15 mm sticker. Three boxes are one printed row. This preview is a guide only. The ZD220 receives the ZPL, not this picture.</p>
 		<div id="zl_stage" class="zl-stage">
 			<div id="zl_scaler">
 				<div id="zl_roll" class="zl-roll"></div>
@@ -229,13 +249,13 @@
 				<input type="number" id="zl_qty" class="form-control" min="1" max="100" step="1" value="1">
 			</label>
 			<button type="button" class="zl-btn" id="zl_print_preview">Preview</button>
-			<button type="button" class="zl-btn zl-btn--print" id="zl_print"><i class="fa fa-print"></i> Print</button>
+			<button type="button" class="zl-btn zl-btn--print" id="zl_print"><i class="fa fa-print"></i> Print to Zebra ZD220</button>
 			<button type="button" class="zl-btn" id="zl_test_print">Test print</button>
 			<button type="button" class="zl-btn" id="zl_view_zpl">View ZPL</button>
 			<button type="button" class="zl-btn" id="zl_printer_settings_btn">Printer settings</button>
 		</div>
 		<p id="zl_qty_summary" class="zl-qty-summary">1 row × 3 labels = 3 physical labels</p>
-		<p class="zl-hint">Print and Test print send raw ZPL through QZ Tray. They do not save the label. Quantity 10 is ten identical rows, not a shifting layout.</p>
+		<p class="zl-hint">Print and Test print send raw ZPL through QZ Tray. A job is submitted only after QZ Tray accepts it. Quantity 2 is two identical rows, 6 physical labels. The saved label is not changed.</p>
 	</section>
 </div>
 
@@ -257,14 +277,14 @@
 		queue: @json($zebra_queue),
 		defaults: @json($zebra_defaults),
 		media: @json($zebra_media),
-		canEditSku: @json(auth()->user() && auth()->user()->can('product.update')),
 		urls: {
 			product: @json(url('/labels/zebra/product')),
 			profiles: @json(url('/labels/zebra/profiles')),
 			zpl: @json(url('/labels/zebra/zpl')),
 			temporaryPrint: @json(url('/labels/zebra/temporary-print')),
 			search: @json(url('/purchases/get_products')),
-			qz: @json(asset('js/vendor/qz-tray.js'))
+			qz: @json(asset('js/vendor/qz-tray.js') . '?v=' . filemtime(public_path('js/vendor/qz-tray.js'))),
+			lna: @json(asset('js/vendor/qz-lna.js') . '?v=' . filemtime(public_path('js/vendor/qz-lna.js')))
 		}
 	};
 </script>
